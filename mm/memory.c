@@ -3291,6 +3291,7 @@ static vm_fault_t do_anonymous_page(struct vm_fault *vmf)
 	struct page *page;
 	vm_fault_t ret = 0;
 	pte_t entry;
+	struct rm_entry *rm_entry = NULL;
 
 	/* File mapping without ->vm_ops ? */
 	if (vma->vm_flags & VM_SHARED)
@@ -3341,10 +3342,16 @@ static vm_fault_t do_anonymous_page(struct vm_fault *vmf)
 
 	if (unlikely(anon_vma_prepare(vma)))
 		goto oom;
-	if (GET_RM_ROOT(vma)) {
+	if (GET_RM_ROOT(vma) /*&& !uid_eq(vma->vm_mm->owner->cred->uid, GLOBAL_ROOT_UID)*/ ) {
+		rm_entry = get_rm_entry_from_reservation(vma, vmf->address);
+		if (rm_entry && rm_entry->next_node) {
+			read_lock(&(rm_entry->lock_hugepage));
+		}
 		page = rm_alloc_from_reservation(vma, vmf->address);
-		if (PageTransHuge(page)) // CERTO
-			return VM_FAULT_NOPAGE;
+		if (page && PageTransHuge(page)) {
+			// pr_alert("vma->vm_mm->owner->cred->uid = %d",vma->vm_mm->owner->cred->uid);
+			return 0;
+		}
 	} else {
 		page = NULL;
 	}
@@ -3400,6 +3407,8 @@ setpte:
 	update_mmu_cache(vma, vmf->address, vmf->pte);
 unlock:
 	pte_unmap_unlock(vmf->pte, vmf->ptl);
+	if (rm_entry)
+		read_unlock(&(rm_entry->lock_hugepage));
 	return ret;
 release:
 	mem_cgroup_cancel_charge(page, memcg, false);
@@ -3408,6 +3417,8 @@ release:
 oom_free_page:
 	put_page(page);
 oom:
+	if (rm_entry)
+		read_unlock(&(rm_entry->lock_hugepage));
 	return VM_FAULT_OOM;
 }
 

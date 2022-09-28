@@ -2704,7 +2704,11 @@ int do_munmap(struct mm_struct *mm, unsigned long start, size_t len,
 	unsigned long end;
 	struct vm_area_struct *vma, *prev, *last;
 
-  unsigned long it_addr;
+  	unsigned long it_addr;
+	int i;
+	struct page *page = NULL;
+	struct anon_vma_chain *vmac;
+	struct anon_vma *anon_vma;
 
 	if ((offset_in_page(start)) || start > TASK_SIZE || len > TASK_SIZE-start)
 		return -EINVAL;
@@ -2724,6 +2728,49 @@ int do_munmap(struct mm_struct *mm, unsigned long start, size_t len,
 	end = start + len;
 	if (vma->vm_start >= end)
 		return 0;
+
+	it_addr = start;
+	for (; it_addr < end; it_addr += PAGE_SIZE) {
+
+		struct mm_struct *mm = current->mm;
+		pgd_t *pgd = pgd_offset(mm, it_addr);
+		p4d_t *p4d = p4d_offset(pgd, it_addr);
+		if (!p4d_present(*p4d))
+			continue;
+		pud_t *pud = pud_offset(p4d, it_addr);
+		if (!pud_present(*pud))
+			continue;
+		pmd_t *pmd = pmd_offset(pud, it_addr);
+		if (!pmd_present(*pmd))
+			continue;
+		if (!pmd_trans_huge(*pmd))
+			continue;
+		page = pmd_page(*pmd);
+
+		// struct page *page = get_head_page_from_reservation(vma, it_addr);
+		// if (!page)
+		// 	continue;
+		if (PageTransCompound(page)) {
+			page = compound_head(page);
+			pr_alert("= INIT =");
+			for (i = 0; i < RESERV_NR; i++) {
+				anon_vma = page_get_anon_vma(page+i);
+				if (!anon_vma) {
+					pr_alert("before anon_vma = NULL page = %ld PageActive(page) = %d PageLRU(page) = %d page_count(page) = %d total_mapcount(page) = %d PageTransCompound(page) = %d", page_to_pfn(page+i), PageActive(page+i), PageLRU(page+i), page_count(page+i), total_mapcount(page+i), PageTransCompound(page+i));
+					continue;
+				}
+				pr_alert("before page = %ld PageActive(page) = %d PageLRU(page) = %d page_count(page) = %d total_mapcount(page) = %d PageTransCompound(page) = %d", page_to_pfn(page+i), PageActive(page+i), PageLRU(page+i), page_count(page+i), total_mapcount(page+i), PageTransCompound(page+i));
+				// anon_vma_lock_read(anon_vma);
+				// anon_vma_interval_tree_foreach(vmac, &anon_vma->rb_root, 0, ULONG_MAX) {
+				// 	vma = vmac->vma;
+				// 	if (vma && vma->vm_mm)
+				// 		pr_alert("vma->vm_mm->owner->pid = %d", vma->vm_mm->owner->pid);
+				// }
+				// anon_vma_unlock_read(anon_vma);
+			}
+			pr_alert("= FIM =");
+		}
+	}
 
 	/*
 	 * If we need to split any vma, do it now to save pain later.

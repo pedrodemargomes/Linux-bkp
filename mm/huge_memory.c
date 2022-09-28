@@ -738,7 +738,29 @@ vm_fault_t do_huge_pmd_anonymous_page(struct vm_fault *vmf)
 		return VM_FAULT_FALLBACK;
 	}
 	prep_transhuge_page(page);
-	return __do_huge_pmd_anonymous_page(vmf, page, gfp);
+	vm_fault_t ret = __do_huge_pmd_anonymous_page(vmf, page, gfp);
+
+	// struct anon_vma_chain *vmac;
+	// struct vm_area_struct *vma_;
+	// struct anon_vma *anon_vma;
+	// int i;
+	// for (i = 0; i < RESERV_NR; i++) {
+	// 	anon_vma = page_get_anon_vma(page+i);
+	// 	if (!anon_vma) {
+	// 		pr_alert("anon_vma = NULL page = %ld PageActive(page) = %d PageLRU(page) = %d page_count(page) = %d total_mapcount(page) = %d PageTransCompound(page) = %d", page_to_pfn(page+i), PageActive(page+i), PageLRU(page+i), page_count(page+i), total_mapcount(page+i), PageTransCompound(page+i));
+	// 		continue;
+	// 	}
+	// 	pr_alert("page = %ld PageActive(page) = %d PageLRU(page) = %d page_count(page) = %d total_mapcount(page) = %d PageTransCompound(page) = %d", page_to_pfn(page+i), PageActive(page+i), PageLRU(page+i), page_count(page+i), total_mapcount(page+i), PageTransCompound(page+i));
+	// 	anon_vma_lock_read(anon_vma);
+	// 	anon_vma_interval_tree_foreach(vmac, &anon_vma->rb_root, 0, ULONG_MAX) {
+	// 		vma_ = vmac->vma;
+	// 		if (vma_ && vma_->vm_mm)
+	// 			pr_alert("vma->vm_mm->owner->pid = %d", vma_->vm_mm->owner->pid);
+	// 	}
+	// 	anon_vma_unlock_read(anon_vma);
+	// }
+
+	return ret;
 }
 
 static void insert_pfn_pmd(struct vm_area_struct *vma, unsigned long addr,
@@ -2659,6 +2681,39 @@ int page_trans_huge_mapcount(struct page *page, int *total_mapcount)
 	return ret;
 }
 
+/*
+ * Fix up the mem_cgroup field of the head and tail pages of a compound
+ * page that has been converted from a reservation into a huge page.
+ */
+void mem_cgroup_collapse_huge_fixup(struct page *head)
+{
+	int i;
+
+	if (mem_cgroup_disabled())
+		return;
+
+	/*
+	 * Some pages may already have mem_cgroup == NULL if only some of
+	 * the pages in the reservation were faulted in when it was converted.
+	 */
+	for (i = 0; i < HPAGE_PMD_NR; i++) {
+		if (head[i].mem_cgroup != NULL) {
+			if (i != 0)
+				head->mem_cgroup = head[i].mem_cgroup;
+			else
+				i++;
+			break;
+		}
+	}
+	for (; i < HPAGE_PMD_NR; i++)
+		head[i].mem_cgroup = NULL;
+
+	if (WARN_ON(head->mem_cgroup == NULL))
+		return;
+
+	__mod_memcg_state(head->mem_cgroup, MEMCG_RSS_HUGE, HPAGE_PMD_NR);
+}
+
 /* promote HPAGE_PMD_SIZE range into a PMD map.
  * mmap_sem needs to be down_write.
  */
@@ -2675,6 +2730,7 @@ int promote_huge_pmd_address(struct vm_area_struct *vma, unsigned long haddr)
 	unsigned long mmun_end;		/* For mmu_notifiers */
 	int ret = -EBUSY;
 	struct mem_cgroup *memcg;
+	int i;
 
 	VM_BUG_ON(haddr & ~HPAGE_PMD_MASK);
 
@@ -2739,6 +2795,8 @@ int promote_huge_pmd_address(struct vm_area_struct *vma, unsigned long haddr)
 				spin_unlock(pte_ptl);
 			}
 		} else {
+			// unlock_page(page);
+			// ClearPageActive(page);
 			/*
 			 * ptl mostly unnecessary, but preempt has to
 			 * be disabled to update the per-cpu stats
@@ -2750,11 +2808,11 @@ int promote_huge_pmd_address(struct vm_area_struct *vma, unsigned long haddr)
 			 * superfluous.
 			 */
 			pte_clear(vma->vm_mm, address, _pte);
-			atomic_dec(&page->_mapcount);
-			/*page_remove_rmap(page, false, 0);*/
+			// atomic_dec(&page->_mapcount);
+			page_remove_rmap(page, false);
 			if (atomic_read(&page->_mapcount) > -1) {
 				SetPageDoubleMap(head);
-				pr_info("page double mapped");
+				pr_alert("page double mapped");
 			}
 			spin_unlock(pte_ptl);
 		}
@@ -2763,6 +2821,7 @@ int promote_huge_pmd_address(struct vm_area_struct *vma, unsigned long haddr)
 	// set_page_count(head, 1);
 
 	pte_unmap(pte);
+	__SetPageUptodate(head);
 	pgtable = pmd_pgtable(_pmd);
 
 	_pmd = mk_huge_pmd(head, vma->vm_page_prot);
@@ -2779,9 +2838,12 @@ int promote_huge_pmd_address(struct vm_area_struct *vma, unsigned long haddr)
 	VM_BUG_ON(!pmd_none(*pmd));
 	atomic_inc(compound_mapcount_ptr(head));
 	__inc_node_page_state(head, NR_ANON_THPS);
-	page_add_new_anon_rmap(page, vma, haddr, true);
-	// mem_cgroup_commit_charge(page, memcg, false, true);
-	// lru_cache_add_active_or_unevictable(page, vma);
+	page_add_new_anon_rmap(head, vma, haddr, true);
+	mem_cgroup_collapse_huge_fixup(head);
+	// for (i = 0; i < HPAGE_PMD_NR; i++)
+	// 	pr_alert("after create huge page head = %ld PageActive(page) = %d PageLRU(page) = %d page_count(page) = %d total_mapcount(page) = %d PageTransCompound(page) = %d", page_to_pfn(head+i), PageActive(head+i), PageLRU(head+i), page_count(head+i), total_mapcount(head+i), PageTransCompound(head+i));
+	// mem_cgroup_commit_charge(head, memcg, false, true);
+	lru_cache_add_active_or_unevictable(head, vma);
 	pgtable_trans_huge_deposit(mm, pmd, pgtable);
 	set_pmd_at(mm, haddr, pmd, _pmd);
 	update_mmu_cache_pmd(vma, haddr, pmd);
@@ -2794,8 +2856,6 @@ out_unlock:
 out:
 	return ret;
 }
-
-
 
 /* assume mmap_sem is down_write, wrapper for madvise */
 int promote_huge_page_address(struct vm_area_struct *vma, struct page *head, unsigned long haddr)

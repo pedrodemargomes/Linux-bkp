@@ -27,6 +27,7 @@
 struct rm_entry {
   void       *next_node;
   spinlock_t lock;
+  rwlock_t lock_hugepage;
   DECLARE_BITMAP(mask, 512); // unsigned long *
 };
 
@@ -69,7 +70,8 @@ extern struct page *rm_alloc_from_reservation(struct vm_area_struct *vma, unsign
 extern int rm_set_unused(struct vm_area_struct *vma, unsigned long address);
 extern void rm_destroy(struct rm_node *node, unsigned char level); 
 
-extern bool check_from_reservation(struct vm_area_struct *vma, unsigned long address);
+extern int get_mask_weight_from_reservation(struct vm_area_struct *vma, unsigned long address);
+struct rm_entry *get_rm_entry_from_reservation(struct vm_area_struct *vma, unsigned long address);
 
 extern void rm_release_reservation(struct vm_area_struct *vma, unsigned long address);
 
