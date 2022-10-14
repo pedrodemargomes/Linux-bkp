@@ -102,6 +102,7 @@ static inline void list_add_tail(struct list_head *new, struct list_head *head)
  */
 static inline void __list_del(struct list_head * prev, struct list_head * next)
 {
+	// pr_alert("next = %px next->prev = %px prev = %px prev->next = %px", (void *)next, (void *)next->prev, (void *)prev, (void *)prev->next);
 	next->prev = prev;
 	WRITE_ONCE(prev->next, next);
 }

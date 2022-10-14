@@ -27,7 +27,7 @@
 struct rm_entry {
   void       *next_node;
   spinlock_t lock;
-  rwlock_t lock_hugepage;
+  spinlock_t lock_hugepage;
   DECLARE_BITMAP(mask, 512); // unsigned long *
 };
 

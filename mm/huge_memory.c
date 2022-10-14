@@ -2839,11 +2839,17 @@ int promote_huge_pmd_address(struct vm_area_struct *vma, unsigned long haddr)
 	atomic_inc(compound_mapcount_ptr(head));
 	__inc_node_page_state(head, NR_ANON_THPS);
 	page_add_new_anon_rmap(head, vma, haddr, true);
-	mem_cgroup_collapse_huge_fixup(head);
-	// for (i = 0; i < HPAGE_PMD_NR; i++)
-	// 	pr_alert("after create huge page head = %ld PageActive(page) = %d PageLRU(page) = %d page_count(page) = %d total_mapcount(page) = %d PageTransCompound(page) = %d", page_to_pfn(head+i), PageActive(head+i), PageLRU(head+i), page_count(head+i), total_mapcount(head+i), PageTransCompound(head+i));
+	// mem_cgroup_collapse_huge_fixup(head);
 	// mem_cgroup_commit_charge(head, memcg, false, true);
-	lru_cache_add_active_or_unevictable(head, vma);
+	for (i = 0; i < HPAGE_PMD_NR; i++)
+		pr_alert("after create huge page head = %ld PageActive(page) = %d PageLRU(page) = %d page_count(page) = %d total_mapcount(page) = %d PageTransCompound(page) = %d", page_to_pfn(head+i), PageActive(head+i), PageLRU(head+i), page_count(head+i), total_mapcount(head+i), PageTransCompound(head+i));
+
+	// lru_cache_add_active_or_unevictable(head, vma); // Faz com que algumas paginas fiquem desativadas
+
+	// for (i = 0; i < HPAGE_PMD_NR; i++)
+	// 	pr_alert("after - create huge page head = %ld PageActive(page) = %d PageLRU(page) = %d page_count(page) = %d total_mapcount(page) = %d PageTransCompound(page) = %d", page_to_pfn(head+i), PageActive(head+i), PageLRU(head+i), page_count(head+i), total_mapcount(head+i), PageTransCompound(head+i));
+
+
 	pgtable_trans_huge_deposit(mm, pmd, pgtable);
 	set_pmd_at(mm, haddr, pmd, _pmd);
 	update_mmu_cache_pmd(vma, haddr, pmd);

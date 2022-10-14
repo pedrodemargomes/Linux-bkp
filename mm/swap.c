@@ -56,9 +56,11 @@ static DEFINE_PER_CPU(struct pagevec, activate_page_pvecs);
  * This path almost never happens for VM activity - pages are normally
  * freed via pagevecs.  But it gets used by networking.
  */
-static void __page_cache_release(struct page *page)
+void __page_cache_release(struct page *page)
 {
+	// pr_alert("__page_cache_release");
 	if (PageLRU(page)) {
+		// pr_alert("PageLRU(page)");
 		struct zone *zone = page_zone(page);
 		struct lruvec *lruvec;
 		unsigned long flags;
@@ -82,6 +84,7 @@ static void __put_single_page(struct page *page)
 
 static void __put_compound_page(struct page *page)
 {
+	pr_alert("__put_compound_page");
 	compound_page_dtor *dtor;
 
 	/*
