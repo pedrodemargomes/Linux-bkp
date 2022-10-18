@@ -2607,11 +2607,11 @@ static void unmap_region(struct mm_struct *mm,
 			pr_alert("= INIT =");
 			int i;
 			for (i = 0; i < RESERV_NR; i++) {
-				anon_vma = page_get_anon_vma(page+i);
-				if (!anon_vma) {
-					pr_alert("anon_vma = NULL page = %ld PageActive(page) = %d PageLRU(page) = %d page_count(page) = %d total_mapcount(page) = %d PageTransCompound(page) = %d", page_to_pfn(page+i), PageActive(page+i), PageLRU(page+i), page_count(page+i), total_mapcount(page+i), PageTransCompound(page+i));
-					continue;
-				}
+				// anon_vma = page_get_anon_vma(page+i);
+				// if (!anon_vma) {
+				// 	pr_alert("anon_vma = NULL page = %ld PageActive(page) = %d PageLRU(page) = %d page_count(page) = %d total_mapcount(page) = %d PageTransCompound(page) = %d", page_to_pfn(page+i), PageActive(page+i), PageLRU(page+i), page_count(page+i), total_mapcount(page+i), PageTransCompound(page+i));
+				// 	continue;
+				// }
 				pr_alert("page = %ld PageActive(page) = %d PageLRU(page) = %d page_count(page) = %d total_mapcount(page) = %d PageTransCompound(page) = %d", page_to_pfn(page+i), PageActive(page+i), PageLRU(page+i), page_count(page+i), total_mapcount(page+i), PageTransCompound(page+i));
 				// anon_vma_lock_read(anon_vma);
 				// anon_vma_interval_tree_foreach(vmac, &anon_vma->rb_root, 0, ULONG_MAX) {

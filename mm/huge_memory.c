@@ -2846,8 +2846,8 @@ int promote_huge_pmd_address(struct vm_area_struct *vma, unsigned long haddr)
 
 	// lru_cache_add_active_or_unevictable(head, vma); // Faz com que algumas paginas fiquem desativadas
 
-	// for (i = 0; i < HPAGE_PMD_NR; i++)
-	// 	pr_alert("after - create huge page head = %ld PageActive(page) = %d PageLRU(page) = %d page_count(page) = %d total_mapcount(page) = %d PageTransCompound(page) = %d", page_to_pfn(head+i), PageActive(head+i), PageLRU(head+i), page_count(head+i), total_mapcount(head+i), PageTransCompound(head+i));
+	for (i = 0; i < HPAGE_PMD_NR; i++)
+		pr_alert("after - create huge page head = %ld PageActive(page) = %d PageLRU(page) = %d page_count(page) = %d total_mapcount(page) = %d PageTransCompound(page) = %d", page_to_pfn(head+i), PageActive(head+i), PageLRU(head+i), page_count(head+i), total_mapcount(head+i), PageTransCompound(head+i));
 
 
 	pgtable_trans_huge_deposit(mm, pmd, pgtable);
@@ -2868,9 +2868,10 @@ int promote_huge_page_address(struct vm_area_struct *vma, struct page *head, uns
 {
 	int ret;
 
-	if (haddr < vma->vm_start || (haddr + HPAGE_PMD_SIZE) > vma->vm_end)
+	if (haddr < vma->vm_start || (haddr + HPAGE_PMD_SIZE) > vma->vm_end) {
+		pr_alert("haddr < vma->vm_start || (haddr + HPAGE_PMD_SIZE) > vma->vm_end");
 		return -EINVAL;
-
+	}
 	// pr_alert("before rss_stat MM_ANONPAGES = %ld", get_mm_counter(vma->vm_mm, MM_ANONPAGES));
 	prep_compound_page(head, HPAGE_PMD_ORDER);
 	ret = promote_huge_pmd_address(vma, haddr);
