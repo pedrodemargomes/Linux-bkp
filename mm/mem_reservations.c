@@ -383,19 +383,7 @@ void rm_destroy(struct rm_node *node, unsigned char level) { //not thread-safe
           struct vm_area_struct *vma;
           struct anon_vma *anon_vma;
           for (i = 0; i < RESERV_NR; i++) {
-            anon_vma = page_get_anon_vma(page+i);
-            if (!anon_vma) {
-              pr_alert("rm_destroy anon_vma = NULL page = %ld PageActive(page) = %d PageLRU(page) = %d page_count(page) = %d total_mapcount(page) = %d PageTransCompound(page) = %d", page_to_pfn(page+i), PageActive(page+i), PageLRU(page+i), page_count(page+i), total_mapcount(page+i), PageTransCompound(page+i));
-              continue;
-            }
-            pr_alert("rm_destroy page = %ld PageActive(page) = %d PageLRU(page) = %d page_count(page) = %d total_mapcount(page) = %d PageTransCompound(page) = %d", page_to_pfn(page+i), PageActive(page+i), PageLRU(page+i), page_count(page+i), total_mapcount(page+i), PageTransCompound(page+i));
-            anon_vma_lock_read(anon_vma);
-            anon_vma_interval_tree_foreach(vmac, &anon_vma->rb_root, 0, ULONG_MAX) {
-              vma = vmac->vma;
-              if (vma && vma->vm_mm)
-                pr_alert("vma->vm_mm->owner->pid = %d", vma->vm_mm->owner->pid);
-            }
-            anon_vma_unlock_read(anon_vma);
+            pr_alert("rm_destroy anon_vma = NULL page = %ld PageActive(page) = %d PageLRU(page) = %d page_count(page) = %d total_mapcount(page) = %d PageTransCompound(page) = %d", page_to_pfn(page+i), PageActive(page+i), PageLRU(page+i), page_count(page+i), total_mapcount(page+i), PageTransCompound(page+i));
           }
           put_page(page);
         } else {

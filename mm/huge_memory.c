@@ -2685,34 +2685,34 @@ int page_trans_huge_mapcount(struct page *page, int *total_mapcount)
  * Fix up the mem_cgroup field of the head and tail pages of a compound
  * page that has been converted from a reservation into a huge page.
  */
-void mem_cgroup_collapse_huge_fixup(struct page *head)
-{
-	int i;
+// void mem_cgroup_collapse_huge_fixup(struct page *head)
+// {
+// 	int i;
 
-	if (mem_cgroup_disabled())
-		return;
+// 	if (mem_cgroup_disabled())
+// 		return;
 
-	/*
-	 * Some pages may already have mem_cgroup == NULL if only some of
-	 * the pages in the reservation were faulted in when it was converted.
-	 */
-	for (i = 0; i < HPAGE_PMD_NR; i++) {
-		if (head[i].mem_cgroup != NULL) {
-			if (i != 0)
-				head->mem_cgroup = head[i].mem_cgroup;
-			else
-				i++;
-			break;
-		}
-	}
-	for (; i < HPAGE_PMD_NR; i++)
-		head[i].mem_cgroup = NULL;
+// 	/*
+// 	 * Some pages may already have mem_cgroup == NULL if only some of
+// 	 * the pages in the reservation were faulted in when it was converted.
+// 	 */
+// 	for (i = 0; i < HPAGE_PMD_NR; i++) {
+// 		if (head[i].mem_cgroup != NULL) {
+// 			if (i != 0)
+// 				head->mem_cgroup = head[i].mem_cgroup;
+// 			else
+// 				i++;
+// 			break;
+// 		}
+// 	}
+// 	for (; i < HPAGE_PMD_NR; i++)
+// 		head[i].mem_cgroup = NULL;
 
-	if (WARN_ON(head->mem_cgroup == NULL))
-		return;
+// 	if (WARN_ON(head->mem_cgroup == NULL))
+// 		return;
 
-	__mod_memcg_state(head->mem_cgroup, MEMCG_RSS_HUGE, HPAGE_PMD_NR);
-}
+// 	__mod_memcg_state(head->mem_cgroup, MEMCG_RSS_HUGE, HPAGE_PMD_NR);
+// }
 
 /* promote HPAGE_PMD_SIZE range into a PMD map.
  * mmap_sem needs to be down_write.
@@ -2841,13 +2841,13 @@ int promote_huge_pmd_address(struct vm_area_struct *vma, unsigned long haddr)
 	page_add_new_anon_rmap(head, vma, haddr, true);
 	// mem_cgroup_collapse_huge_fixup(head);
 	// mem_cgroup_commit_charge(head, memcg, false, true);
-	for (i = 0; i < HPAGE_PMD_NR; i++)
-		pr_alert("after create huge page head = %ld PageActive(page) = %d PageLRU(page) = %d page_count(page) = %d total_mapcount(page) = %d PageTransCompound(page) = %d", page_to_pfn(head+i), PageActive(head+i), PageLRU(head+i), page_count(head+i), total_mapcount(head+i), PageTransCompound(head+i));
+	// for (i = 0; i < HPAGE_PMD_NR; i++)
+	// 	pr_alert("after create huge page head = %ld PageActive(page) = %d PageLRU(page) = %d page_count(page) = %d total_mapcount(page) = %d PageTransCompound(page) = %d", page_to_pfn(head+i), PageActive(head+i), PageLRU(head+i), page_count(head+i), total_mapcount(head+i), PageTransCompound(head+i));
 
-	// lru_cache_add_active_or_unevictable(head, vma); // Faz com que algumas paginas fiquem desativadas
+	lru_cache_add_active_or_unevictable(head, vma); // Faz com que algumas paginas fiquem desativadas
 
-	for (i = 0; i < HPAGE_PMD_NR; i++)
-		pr_alert("after - create huge page head = %ld PageActive(page) = %d PageLRU(page) = %d page_count(page) = %d total_mapcount(page) = %d PageTransCompound(page) = %d", page_to_pfn(head+i), PageActive(head+i), PageLRU(head+i), page_count(head+i), total_mapcount(head+i), PageTransCompound(head+i));
+	// for (i = 0; i < HPAGE_PMD_NR; i++)
+	// 	pr_alert("after - create huge page head = %ld PageActive(page) = %d PageLRU(page) = %d page_count(page) = %d total_mapcount(page) = %d PageTransCompound(page) = %d", page_to_pfn(head+i), PageActive(head+i), PageLRU(head+i), page_count(head+i), total_mapcount(head+i), PageTransCompound(head+i));
 
 
 	pgtable_trans_huge_deposit(mm, pmd, pgtable);
@@ -2872,6 +2872,15 @@ int promote_huge_page_address(struct vm_area_struct *vma, struct page *head, uns
 		pr_alert("haddr < vma->vm_start || (haddr + HPAGE_PMD_SIZE) > vma->vm_end");
 		return -EINVAL;
 	}
+
+	int i;
+	for (i = 0; i < 512; i++) {
+		pr_alert("head+i = %d head0+i->lru->next = %px head+i->lru->prev = %px", i, (void *)(head+i)->lru.next, (void *)(head+i)->lru.prev);
+		// ClearPageActive(head+i);
+		__page_cache_release(head+i);
+		pr_alert("handle_pte_fault page = %ld PageActive(page) = %d PageLRU(page) = %d page_count(page) = %d total_mapcount(page) = %d PageTransCompound(page) = %d", page_to_pfn(head+i), PageActive(head+i), PageLRU(head+i), page_count(head+i), total_mapcount(head+i), PageTransCompound(head+i));
+	}
+
 	// pr_alert("before rss_stat MM_ANONPAGES = %ld", get_mm_counter(vma->vm_mm, MM_ANONPAGES));
 	prep_compound_page(head, HPAGE_PMD_ORDER);
 	ret = promote_huge_pmd_address(vma, haddr);
