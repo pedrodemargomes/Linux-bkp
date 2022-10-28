@@ -3280,6 +3280,39 @@ out_release:
 }
 
 /*
+ * Fix up the mem_cgroup field of the head and tail pages of a compound
+ * page that has been converted from a reservation into a huge page.
+ */
+void mem_cgroup_collapse_huge_fixup(struct page *head)
+{
+	int i;
+
+	if (mem_cgroup_disabled())
+		return;
+
+	/*
+	 * Some pages may already have mem_cgroup == NULL if only some of
+	 * the pages in the reservation were faulted in when it was converted.
+	 */
+	for (i = 0; i < HPAGE_PMD_NR; i++) {
+		if (head[i].mem_cgroup != NULL) {
+			if (i != 0)
+				head->mem_cgroup = head[i].mem_cgroup;
+			else
+				i++;
+			break;
+		}
+	}
+	for (; i < HPAGE_PMD_NR; i++)
+		head[i].mem_cgroup = NULL;
+
+	if (WARN_ON(head->mem_cgroup == NULL))
+		return;
+
+	__mod_memcg_state(head->mem_cgroup, MEMCG_RSS_HUGE, HPAGE_PMD_NR);
+}
+
+/*
  * We enter with non-exclusive mmap_sem (to exclude vma changes,
  * but allow concurrent faults), and pte mapped but not yet locked.
  * We return with mmap_sem still held, but pte unmapped and unlocked.
@@ -3342,7 +3375,8 @@ static vm_fault_t do_anonymous_page(struct vm_fault *vmf)
 
 	if (unlikely(anon_vma_prepare(vma)))
 		goto oom;
-	if (GET_RM_ROOT(vma) && 0/*&& !uid_eq(vma->vm_mm->user_ns->owner, GLOBAL_ROOT_UID)*/ ) {
+	// pr_alert("> vma->vm_mm->owner->cred->uid = %ld", vma->vm_mm->owner->cred->uid);
+	if (GET_RM_ROOT(vma) && !uid_eq(vma->vm_mm->owner->cred->uid, GLOBAL_ROOT_UID) ) {
 		rm_entry = get_rm_entry_from_reservation(vma, vmf->address);
 		page = rm_alloc_from_reservation(vma, vmf->address);
 		pr_alert("rm page offset = %ld", page-get_page_from_rm((unsigned long)rm_entry->next_node) );
@@ -3409,13 +3443,20 @@ unlock:
 	
 	if (rm_entry && bitmap_weight(rm_entry->mask, 512) > 400) {
 		lru_add_drain_all(); // drena os LRUs
-		pr_alert("bitmap_weight > 500");
+		pr_alert("bitmap_weight > 400");
 		unsigned long haddr = vmf->address & RESERV_MASK;
 		struct page *head = get_page_from_rm((unsigned long) rm_entry->next_node);
-		pr_alert("rm_alloc INIT promote page page_to_pfn(head) = %ld page_count(head) = %d compound_mapcount(head) = %d total_mapcount(head) = %d PageTransCompound(head) = %d", page_to_pfn(head), page_count(head), compound_mapcount(head), total_mapcount(head), PageTransCompound(head));
+		pr_alert("rm_alloc INIT promote page page_to_pfn(head) = %ld page_count(head) = %d compound_mapcount(head) = %d total_mapcount(head) = %d PageActive(head) = %d PageTransCompound(head) = %d", page_to_pfn(head), page_count(head), compound_mapcount(head), total_mapcount(head), PageActive(head), PageTransCompound(head));
 		int retPrmtHugePage = promote_huge_page_address(vma, head, haddr);
 		if (!retPrmtHugePage) {
-			pr_alert("rm_alloc FIM promote page retPrmtHugePage = %d page_to_pfn(head) = %ld page_count(head) = %d compound_mapcount(head) = %d total_mapcount(head) = %d PageTransCompound(head) = %d", retPrmtHugePage, page_to_pfn(head), page_count(head), compound_mapcount(head), total_mapcount(head), PageTransCompound(head));
+			pr_alert("rm_alloc FIM promote page retPrmtHugePage = %d page_to_pfn(head) = %ld page_count(head) = %d compound_mapcount(head) = %d total_mapcount(head) = %d PageActive(head) = %d PageTransCompound(head) = %d", retPrmtHugePage, page_to_pfn(head), page_count(head), compound_mapcount(head), total_mapcount(head), PageActive(head), PageTransCompound(head));
+			// if (mem_cgroup_try_charge_delay(head, vma->vm_mm, GFP_KERNEL, &memcg,
+			// 		true))
+			// 	pr_alert("mem_cgroup_try_charge_delay ERROR");
+			// pr_alert("mem_cgroup_commit_charge");
+			// mem_cgroup_commit_charge(head, memcg, true, true);
+			// mem_cgroup_collapse_huge_fixup(head);
+			
 			return 0;
 		}
 	}

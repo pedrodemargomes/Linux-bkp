@@ -84,7 +84,7 @@ static void __put_single_page(struct page *page)
 
 static void __put_compound_page(struct page *page)
 {
-	pr_alert("__put_compound_page");
+	pr_alert("BEGIN __put_compound_page");
 	compound_page_dtor *dtor;
 
 	/*
@@ -97,6 +97,7 @@ static void __put_compound_page(struct page *page)
 		__page_cache_release(page);
 	dtor = get_compound_page_dtor(page);
 	(*dtor)(page);
+	pr_alert("END __put_compound_page");
 }
 
 void __put_page(struct page *page)

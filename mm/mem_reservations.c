@@ -93,7 +93,6 @@ extern void rm_release_reservation(struct vm_area_struct *vma, unsigned long add
     pr_alert("rm_release PageTransCompound(page) = %d page_to_pfn(page) = %ld page_count(page) = %d total_mapcount(page) = %d", PageTransCompound(page), page_to_pfn(page), page_count(page), total_mapcount(page));
     if (PageTransCompound(page)) {
       pr_alert("put_page");
-      ClearPageActive(page);
       put_page(page);
       __SetPageUptodate(page);
       struct anon_vma_chain *vmac;
