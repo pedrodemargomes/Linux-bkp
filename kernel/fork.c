@@ -640,12 +640,12 @@ void __mmdrop(struct mm_struct *mm)
 	mmu_notifier_mm_destroy(mm);
 	check_mm(mm);
 	put_user_ns(mm->user_ns);
-  if (mm->memory_reservations) {
-    // debug
-    // printk("Freeing the reservation map");
-    rm_destroy(mm->memory_reservations, 1);
-    mm->memory_reservations = NULL;
-  }
+	if (mm->memory_reservations) {
+		// debug
+		// printk("Freeing the reservation map");
+		rm_destroy(mm->memory_reservations, 1);
+		mm->memory_reservations = NULL;
+	}
 	free_mm(mm);
 }
 EXPORT_SYMBOL_GPL(__mmdrop);
