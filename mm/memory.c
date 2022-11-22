@@ -1320,7 +1320,7 @@ static unsigned long zap_pte_range(struct mmu_gather *tlb,
 				unsigned long addr, unsigned long end,
 				struct zap_details *details)
 {
-	pr_alert("INIT zap_pte_range start = %ld end = %ld", vma->vm_start, vma->vm_end);
+	// pr_alert("INIT zap_pte_range start = %ld end = %ld", vma->vm_start, vma->vm_end);
 	struct mm_struct *mm = tlb->mm;
 	int force_flush = 0;
 	int rss[NR_MM_COUNTERS];
@@ -1345,7 +1345,7 @@ again:
 			struct page *page;
 
 			page = _vm_normal_page(vma, addr, ptent, true);
-			pr_alert("page = %ld", page_to_pfn(page));
+			// pr_alert("page = %ld", page_to_pfn(page));
 			if (unlikely(details) && page) {
 				/*
 				 * unmap_shared_mapping_pages() wants to
@@ -1450,7 +1450,7 @@ again:
 			goto again;
 	}
 
-	pr_alert("FIM zap_pte_range");
+	// pr_alert("FIM zap_pte_range");
 	return addr;
 }
 
@@ -1466,9 +1466,9 @@ static inline unsigned long zap_pmd_range(struct mmu_gather *tlb,
 	do {
 		next = pmd_addr_end(addr, end);
 		if (is_swap_pmd(*pmd) || pmd_trans_huge(*pmd) || pmd_devmap(*pmd)) {
-			pr_alert("pmd_trans_huge");
+			// pr_alert("pmd_trans_huge");
 			if (next - addr != HPAGE_PMD_SIZE) {
-				pr_alert("__split_huge_pmd");
+				// pr_alert("__split_huge_pmd");
 				__split_huge_pmd(vma, pmd, addr, false, NULL);
 			} else if (zap_huge_pmd(tlb, vma, pmd, addr))
 				goto next;

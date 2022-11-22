@@ -2808,7 +2808,7 @@ int promote_huge_pmd_address(struct vm_area_struct *vma, unsigned long haddr, st
 		pr_alert("page = %ld page->_mapcount = %d", page_to_pfn(page), atomic_read(&(page)->_mapcount));
 	}
 	// page_ref_sub(head, HPAGE_PMD_NR - 1);
-	// set_page_count(head, 1);
+	set_page_count(head, 2);
 
 	pte_unmap(pte);
 	__SetPageUptodate(head);
