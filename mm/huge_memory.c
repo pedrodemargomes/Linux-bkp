@@ -2706,7 +2706,9 @@ int promote_huge_pmd_address(struct vm_area_struct *vma, unsigned long haddr, st
 
 	pmd = mm_find_pmd(mm, haddr);
 	if (!pmd || pmd_trans_huge(*pmd)) {
+		#ifdef DEBUG_RESERV_THP
 		pr_alert("!pmd || pmd_trans_huge(*pmd)");
+		#endif
 		goto out_unlock;
 	}
 
@@ -2718,14 +2720,18 @@ int promote_huge_pmd_address(struct vm_area_struct *vma, unsigned long haddr, st
 	page = head;
 	// head = page = vm_normal_page(vma, haddr, *pte);
 	if (!page || !PageTransCompound(page)) {
+		#ifdef DEBUG_RESERV_THP
 		pr_alert("!page || !PageTransCompound(page) page = %ld PageTransCompound(page) = %d", page_to_pfn(page), PageTransCompound(page));
+		#endif
 		goto out_unlock;
 	}
 
 	VM_BUG_ON(page != compound_head(page));
 	lock_page(head);
 
+	#ifdef DEBUG_RESERV_THP
 	pr_alert("mem_cgroup_try_charge_delay page = %ld PageActive(page) = %d PageLRU(page) = %d page_count(page) = %d total_mapcount(page) = %d PageTransCompound(page) = %d", page_to_pfn(head), PageActive(head), PageLRU(head), page_count(head), total_mapcount(head), PageTransCompound(head));
+	#endif
 	if (mem_cgroup_try_charge_delay(head, vma->vm_mm, GFP_KERNEL, &memcg,
 					true))
 		pr_alert("mem_cgroup_try_charge_delay ERROR");
@@ -2756,15 +2762,21 @@ int promote_huge_pmd_address(struct vm_area_struct *vma, unsigned long haddr, st
 	for (_pte = pte, page = head; _pte < pte + HPAGE_PMD_NR;
 				_pte++, page++, address += PAGE_SIZE) {
 		pte_t pteval = *_pte;
+		#ifdef DEBUG_RESERV_THP
 		pr_alert("page = %ld page->_mapcount = %d", page_to_pfn(page), atomic_read(&(page)->_mapcount));
+		#endif
 		// pteeval nao eh none quando deveria ser e decrementa o mapcount para -2 quando deveria manter em -1
 		// É preciso vertificar se todos os ptes estão livres, caso estajam sendo usados para mapear paginas fora dessa reserva
 		// algo precisa ser feito https://lkml.org/lkml/2018/1/25/571
 		if (pte_none(pteval) || is_zero_pfn(pte_pfn(pteval))) {
+			#ifdef DEBUG_RESERV_THP
 			pr_alert("pte none or zero pfn during pmd promotion\n");
+			#endif
 			add_mm_counter(vma->vm_mm, MM_ANONPAGES, 1);
 			if (is_zero_pfn(pte_pfn(pteval))) {
+				#ifdef DEBUG_RESERV_THP
 				pr_alert("is_zero_pfn");
+				#endif
 				/*
 				 * ptl mostly unnecessary.
 				 */
@@ -2777,12 +2789,14 @@ int promote_huge_pmd_address(struct vm_area_struct *vma, unsigned long haddr, st
 				spin_unlock(pte_ptl);
 			}
 		} else {
+			#ifdef DEBUG_RESERV_THP
 			pr_alert("else");
 
 			if (atomic_read(&(page)->_mapcount) == -1) {
 				struct page *page_pte = pte_page(pteval);
 				pr_alert("page_pte = %ld", page_to_pfn(page_pte));
 			}
+			#endif
 
 			// unlock_page(page);
 			// ClearPageActive(page);
@@ -2805,7 +2819,9 @@ int promote_huge_pmd_address(struct vm_area_struct *vma, unsigned long haddr, st
 			}
 			spin_unlock(pte_ptl);
 		}
+		#ifdef DEBUG_RESERV_THP
 		pr_alert("page = %ld page->_mapcount = %d", page_to_pfn(page), atomic_read(&(page)->_mapcount));
+		#endif
 	}
 	// page_ref_sub(head, HPAGE_PMD_NR - 1);
 	set_page_count(head, 2);
@@ -2829,20 +2845,8 @@ int promote_huge_pmd_address(struct vm_area_struct *vma, unsigned long haddr, st
 	atomic_inc(compound_mapcount_ptr(head));
 	__inc_node_page_state(head, NR_ANON_THPS);
 	page_add_new_anon_rmap(head, vma, haddr, true);
-	pr_alert("BEGIN mem_cgroup_commit_charge");
-	pr_alert("mem_cgroup_commit_charge page = %ld PageActive(page) = %d PageLRU(page) = %d page_count(page) = %d total_mapcount(page) = %d PageTransCompound(page) = %d", page_to_pfn(head), PageActive(head), PageLRU(head), page_count(head), total_mapcount(head), PageTransCompound(head));
 	mem_cgroup_commit_charge(head, memcg, false, true);
-	pr_alert("END mem_cgroup_commit_charge");
-	// mem_cgroup_collapse_huge_fixup(head);
-	// for (i = 0; i < HPAGE_PMD_NR; i++)
-	// 	pr_alert("after create huge page head = %ld PageActive(page) = %d PageLRU(page) = %d page_count(page) = %d total_mapcount(page) = %d page->_mapcount = %d PageTransCompound(page) = %d", page_to_pfn(head+i), PageActive(head+i), PageLRU(head+i), page_count(head+i), total_mapcount(head+i), atomic_read(&(head+i)->_mapcount), PageTransCompound(head+i));
-
 	lru_cache_add_active_or_unevictable(head, vma);
-
-	// for (i = 0; i < HPAGE_PMD_NR; i++)
-	// 	pr_alert("after - create huge page head = %ld PageActive(page) = %d PageLRU(page) = %d page_count(page) = %d total_mapcount(page) = %d page->_mapcount = %d PageTransCompound(page) = %d", page_to_pfn(head+i), PageActive(head+i), PageLRU(head+i), page_count(head+i), total_mapcount(head+i), atomic_read(&(head+i)->_mapcount), PageTransCompound(head+i));
-
-
 	pgtable_trans_huge_deposit(mm, pmd, pgtable);
 	set_pmd_at(mm, haddr, pmd, _pmd);
 	update_mmu_cache_pmd(vma, haddr, pmd);
@@ -2862,7 +2866,9 @@ int promote_huge_page_address(struct vm_area_struct *vma, struct page *head, uns
 	int ret;
 
 	if (haddr < vma->vm_start || (haddr + HPAGE_PMD_SIZE) > vma->vm_end) {
+		#ifdef DEBUG_RESERV_THP
 		pr_alert("haddr < vma->vm_start || (haddr + HPAGE_PMD_SIZE) > vma->vm_end");
+		#endif
 		return -EINVAL;
 	}
 
@@ -2877,7 +2883,9 @@ int promote_huge_page_address(struct vm_area_struct *vma, struct page *head, uns
 	for (_pte = pte, page = head; _pte < pte + HPAGE_PMD_NR; _pte++, page++) {
 		pte_t pteval = *_pte;
 		if (!pte_none(pteval) && !is_zero_pfn(pte_pfn(pteval)) && atomic_read(&(page)->_mapcount) == -1) {
+			#ifdef DEBUG_RESERV_THP
 			pr_alert("goto out_unlock head = %ld page = %ld", page_to_pfn(head), page_to_pfn(page));
+			#endif
 			return -EINVAL;
 		}
 	}

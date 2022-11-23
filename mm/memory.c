@@ -3389,7 +3389,9 @@ static vm_fault_t do_anonymous_page(struct vm_fault *vmf)
 	if (GET_RM_ROOT(vma) && !uid_eq(vma->vm_mm->owner->cred->uid, GLOBAL_ROOT_UID) ) {
 		rm_entry = get_rm_entry_from_reservation(vma, vmf->address);
 		page = rm_alloc_from_reservation(vma, vmf->address);
+		#ifdef DEBUG_RESERV_THP
 		pr_alert("rm page = %ld offset = %ld", page_to_pfn(page), page-get_page_from_rm((unsigned long)rm_entry->next_node) );
+		#endif
 	} else {
 		page = NULL;
 	}
@@ -3413,9 +3415,11 @@ static vm_fault_t do_anonymous_page(struct vm_fault *vmf)
 	 */
 	__SetPageUptodate(page);
 
+	#ifdef DEBUG_RESERV_THP
 	if (PageTransCompound(page)) {
 		pr_alert("memory.c after __SetPageUptodate PageTransCompound(page) == true");
 	}
+	#endif
 
 	entry = mk_pte(page, vma->vm_page_prot);
 	if (vma->vm_flags & VM_WRITE)
@@ -3451,20 +3455,25 @@ setpte:
 unlock:
 	pte_unmap_unlock(vmf->pte, vmf->ptl);
 	
-	if (rm_entry && bitmap_weight(rm_entry->mask, 512) > 400) {
+	if (rm_entry && bitmap_weight(rm_entry->mask, 512) > 64) {
 		lru_add_drain_all(); // drena os LRUs
-		pr_alert("bitmap_weight > 400");
+		#ifdef DEBUG_RESERV_THP
+		pr_alert("bitmap_weight > 64");
+		#endif
 		unsigned long haddr = vmf->address & RESERV_MASK;
 		struct page *head = get_page_from_rm((unsigned long) rm_entry->next_node);
 		if (PageTransCompound(head)) {
-			// pr_alert("PageTransCompound(head) == true return 0");
-			// for (i = 0; i < RESERV_NR; i++) {
-			// 	pr_alert("memory.c page = %ld PageActive(page) = %d PageLRU(page) = %d page_count(page) = %d total_mapcount(page) = %d PageTransCompound(page) = %d", page_to_pfn(head+i), PageActive(head+i), PageLRU(head+i), page_count(head+i), total_mapcount(head+i), PageTransCompound(head+i));
-			// }
+			#ifdef DEBUG_RESERV_THP
+			pr_alert("PageTransCompound(head) == true return 0");
+			for (i = 0; i < RESERV_NR; i++) {
+				pr_alert("memory.c page = %ld PageActive(page) = %d PageLRU(page) = %d page_count(page) = %d total_mapcount(page) = %d PageTransCompound(page) = %d", page_to_pfn(head+i), PageActive(head+i), PageLRU(head+i), page_count(head+i), total_mapcount(head+i), PageTransCompound(head+i));
+			}
+			#endif
 			return ret; 
 		}
+		#ifdef DEBUG_RESERV_THP
 		pr_alert("rm_alloc INIT promote page page_to_pfn(head) = %ld page_count(head) = %d compound_mapcount(head) = %d total_mapcount(head) = %d PageActive(head) = %d PageTransCompound(head) = %d", page_to_pfn(head), page_count(head), compound_mapcount(head), total_mapcount(head), PageActive(head), PageTransCompound(head));
-		
+
 		struct anon_vma_chain *vmac;
 		struct vm_area_struct *vma;
 		struct anon_vma *anon_vma;
@@ -3483,9 +3492,12 @@ unlock:
 			}
 			anon_vma_unlock_read(anon_vma);
 		}
+		#endif
 		
 		int retPrmtHugePage = promote_huge_page_address(vma, head, haddr);
+		
 		if (!retPrmtHugePage) {
+			#ifdef DEBUG_RESERV_THP
 			pr_alert("rm_alloc FIM promote page retPrmtHugePage = %d page_to_pfn(head) = %ld page_count(head) = %d compound_mapcount(head) = %d total_mapcount(head) = %d PageActive(head) = %d PageTransCompound(head) = %d", retPrmtHugePage, page_to_pfn(head), page_count(head), compound_mapcount(head), total_mapcount(head), PageActive(head), PageTransCompound(head));
 			
 			struct anon_vma_chain *vmac;
@@ -3506,7 +3518,7 @@ unlock:
 				}
 				anon_vma_unlock_read(anon_vma);
 			}
-		
+			#endif
 			
 			return 0;
 		}
@@ -3515,14 +3527,11 @@ unlock:
 	return ret;
 release:
 	mem_cgroup_cancel_charge(page, memcg, false);
-	pr_alert("put_page");
 	put_page(page);
 	goto unlock;
 oom_free_page:
-	pr_alert("put_page");
 	put_page(page);
 oom:
-	pr_alert("VM_FAULT_OOM");
 	return VM_FAULT_OOM;
 }
 
