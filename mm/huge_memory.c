@@ -2843,7 +2843,6 @@ int promote_huge_pmd_address(struct vm_area_struct *vma, unsigned long haddr, st
 	spin_lock(pmd_ptl);
 	VM_BUG_ON(!pmd_none(*pmd));
 	atomic_inc(compound_mapcount_ptr(head));
-	__inc_node_page_state(head, NR_ANON_THPS);
 	page_add_new_anon_rmap(head, vma, haddr, true);
 	mem_cgroup_commit_charge(head, memcg, false, true);
 	lru_cache_add_active_or_unevictable(head, vma);
