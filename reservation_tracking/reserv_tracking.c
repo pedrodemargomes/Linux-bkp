@@ -47,14 +47,11 @@ DECLARE_WAIT_QUEUE_HEAD(osa_hpage_scand_wait);
 static struct workqueue_struct *osa_hpage_scand_wq __read_mostly;
 static struct work_struct osa_hpage_scan_work;
 
-unsigned int deferred_mode = 1;
 struct list_head hugepage_worklist;
 static util_node_t *_util_node[512];
 
-static struct list_head osa_hot_page_set[5];
 static unsigned int freq_scan_count = 0;
 static unsigned int scan_sleep_millisecs = 4000;
-static unsigned long count[5];
 
 struct osa_walker_stats {
 	unsigned int hpage_requirement;
@@ -131,26 +128,23 @@ static int osa_bpage_pte_walker(pte_t *pte, unsigned long addr,
 			bitmap_shift_right(f_node->freq_bitmap, f_node->freq_bitmap, 1,
 					FREQ_BITMAP_SIZE);
 
-			if (deferred_mode >= 2) {
-				// hot page: run lottery for a random sampling.
-				if (f_node->frequency[0] >= 0) {
-					//get_random_bytes(&lottery, sizeof(unsigned long));
-					get_random_bytes_arch(&lottery, sizeof(unsigned long));
-					if (!active_bpage_count)
-						active_bpage_count++;
-					if (lottery % active_bpage_count > 
-							((active_bpage_count * 20) / 100)) {
-						lottery_selected = 1;
-					} else {
-						lottery_selected = 0;
-						clear_page_idle(page);
-					}
-				} else {
-					// cold page: lottery is always selected.
+			// hot page: run lottery for a random sampling.
+			if (f_node->frequency[0] >= 0) {
+				//get_random_bytes(&lottery, sizeof(unsigned long));
+				get_random_bytes_arch(&lottery, sizeof(unsigned long));
+				if (!active_bpage_count)
+					active_bpage_count++;
+				if (lottery % active_bpage_count > 
+						((active_bpage_count * 20) / 100)) {
 					lottery_selected = 1;
+				} else {
+					lottery_selected = 0;
+					clear_page_idle(page);
 				}
-			} else
+			} else {
+				// cold page: lottery is always selected.
 				lottery_selected = 1;
+			}
 
 			// Clearing access bit causes a TLB miss of the address.
 			if (lottery_selected) {
@@ -180,27 +174,6 @@ static int osa_bpage_pte_walker(pte_t *pte, unsigned long addr,
 			frequency_update(f_node);
 			set_page_idle(page);
 			put_page(page);
-
-			if ((freq_scan_count % SEC_SCAN_COUNT) == 0) {
-				unsigned int weight = 0, i = 0;
-				if (!spin_trylock(&osa_page_set_lock))
-					goto out;
-
-				//Clear osa_flag to enable re-aggregation
-				if ((freq_scan_count & 0xff) == 0)
-					clear_bit(OSA_PF_AGGR, &page->osa_flag);
-
-				for (i = FREQ_BITMAP_SIZE - 1; i > FREQ_BITMAP_SIZE - 5; i--) 
-					if (test_bit(i, f_node->freq_bitmap))
-						weight++;
-
-				if (weight == 4) {
-					list_add(&f_node->link, &osa_hot_page_set[0]);
-					count[0]++;
-				}
-
-				spin_unlock(&osa_page_set_lock);
-			}
 		}
     }
 out:
@@ -396,30 +369,19 @@ void osa_hpage_do_scan(void)
 
 	freq_scan_count++;
 
-	if ((freq_scan_count % SEC_SCAN_COUNT) == 0) {
-		spin_lock(&osa_page_set_lock);
-
-		for (i = 0; i < 5; i++) {
-			INIT_LIST_HEAD(&osa_hot_page_set[i]);
-			count[i] = 0;
-		}
-
-		spin_unlock(&osa_page_set_lock);
-	}
-
-	pr_alert("osa_hpage_do_scan");
+	// pr_alert("osa_hpage_do_scan");
 
 	// Scanning per-application anonymous pages
 	list_for_each_entry_rcu(mm, &osa_hpage_scan_list, osa_hpage_scan_link) {
-		pr_alert("mm = %p", mm);
+		// pr_alert("mm = %p", mm);
 		if (!mm) 
 			continue;
 
-		pr_alert("atomic_read(&mm->mm_users) = %d", atomic_read(&mm->mm_users));
+		// pr_alert("atomic_read(&mm->mm_users) = %d", atomic_read(&mm->mm_users));
 		if (atomic_read(&mm->mm_users) == 0)
 			continue;
 
-		pr_alert("mm->hpage_stats.weight = %d", mm->hpage_stats.weight);
+		// pr_alert("mm->hpage_stats.weight = %d", mm->hpage_stats.weight);
 		// for debugging
 		if (!mm->hpage_stats.weight)
 			continue;
@@ -447,13 +409,14 @@ void osa_hpage_do_scan(void)
 		pr_alert("err = %d", err);
 
 		if (!err) {
-
+			
 			pr_alert("[%d] pid %d: \n\tidle_hpage %u hpage %u idle_bpage %lu bpage %lu\n",
 					current->pid, tsk->pid, 
 					walker_stats.idle_hpage_count,
 					walker_stats.total_hpage_count,
 					walker_stats.idle_bpage_count,
 					walker_stats.total_bpage_count);
+
 			/*
 			trace_printk("[%d] pid %d: hit %u miss %u\n",
 					current->pid, tsk->pid, 
@@ -572,11 +535,6 @@ static int __init osa_hugepage_init(void)
 	struct kobject *hugepage_kobj;
 
 	INIT_LIST_HEAD(&osa_hpage_scan_list);
-	{
-		int i;
-		for (i = 0; i < 5; i++) 
-			INIT_LIST_HEAD(&osa_hot_page_set[i]);
-	}
 
 	err = start_stop_osa_hpage_scand();
 	if (err)

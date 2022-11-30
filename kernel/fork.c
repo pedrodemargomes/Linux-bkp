@@ -982,10 +982,11 @@ static struct mm_struct *mm_init(struct mm_struct *mm, struct task_struct *p,
 	INIT_LIST_HEAD(&mm->osa_hpage_scan_link);
 	INIT_RADIX_TREE(&mm->root_popl_map, GFP_ATOMIC);
 
-	mm->hpage_stats.weight = 0;
-
-	osa_hpage_enter_list(mm);
-	wake_up_interruptible(&osa_hpage_scand_wait);
+	mm->hpage_stats.weight = 1;
+	if(!uid_eq(mm->owner->cred->uid, GLOBAL_ROOT_UID)) {
+		osa_hpage_enter_list(mm);
+		wake_up_interruptible(&osa_hpage_scand_wait);
+	}
 
 	mm_init_uprobes_state(mm);
 	hugetlb_count_init(mm);
