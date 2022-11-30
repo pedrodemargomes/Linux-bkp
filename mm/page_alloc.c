@@ -73,6 +73,8 @@
 #include <asm/div64.h>
 #include "internal.h"
 
+#include <reservation_tracking/reserv_tracking.h>
+
 /* prevent >1 _updater_ of zone percpu pageset ->high and ->batch fields */
 static DEFINE_MUTEX(pcp_batch_high_lock);
 #define MIN_PERCPU_PAGELIST_FRACTION	(8)
@@ -1961,6 +1963,9 @@ static void prep_new_page(struct page *page, unsigned int order, gfp_t gfp_flags
 		set_page_pfmemalloc(page);
 	else
 		clear_page_pfmemalloc(page);
+
+	bitmap_clear(page->util_info.freq_bitmap, 0, FREQ_BITMAP_SIZE);
+	memset(page->util_info.frequency, 0, PRI_HISTORY_SIZE * sizeof(uint32_t));
 }
 
 /*

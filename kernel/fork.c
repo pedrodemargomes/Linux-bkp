@@ -106,6 +106,8 @@
 #define CREATE_TRACE_POINTS
 #include <trace/events/task.h>
 
+#include <reservation_tracking/reserv_tracking.h>
+
 /*
  * Minimum number of threads to boot the kernel
  */
@@ -640,6 +642,8 @@ void __mmdrop(struct mm_struct *mm)
 	mmu_notifier_mm_destroy(mm);
 	check_mm(mm);
 	put_user_ns(mm->user_ns);
+	
+	osa_hpage_exit_list(mm);
 	if (mm->memory_reservations) {
 		// debug
 		// printk("Freeing the reservation map");
@@ -973,6 +977,16 @@ static struct mm_struct *mm_init(struct mm_struct *mm, struct task_struct *p,
 #if defined(CONFIG_TRANSPARENT_HUGEPAGE) && !USE_SPLIT_PMD_PTLOCKS
 	mm->pmd_huge_pte = NULL;
 #endif
+
+	INIT_LIST_HEAD(&mm->osa_hpage_reclaim_link);
+	INIT_LIST_HEAD(&mm->osa_hpage_scan_link);
+	INIT_RADIX_TREE(&mm->root_popl_map, GFP_ATOMIC);
+
+	mm->hpage_stats.weight = 0;
+
+	osa_hpage_enter_list(mm);
+	wake_up_interruptible(&osa_hpage_scand_wait);
+
 	mm_init_uprobes_state(mm);
 	hugetlb_count_init(mm);
 

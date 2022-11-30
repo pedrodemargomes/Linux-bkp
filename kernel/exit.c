@@ -68,6 +68,9 @@
 #include <asm/pgtable.h>
 #include <asm/mmu_context.h>
 
+#include <reservation_tracking/reserv_tracking.h>
+#include <linux/radix-tree.h>
+
 static void __unhash_process(struct task_struct *p, bool group_dead)
 {
 	nr_threads--;

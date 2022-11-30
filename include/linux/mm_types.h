@@ -17,10 +17,25 @@
 
 #include <asm/mmu.h>
 
+#include <linux/radix-tree.h>
+
 #ifndef AT_VECTOR_SIZE_ARCH
 #define AT_VECTOR_SIZE_ARCH 0
 #endif
 #define AT_VECTOR_SIZE (2*(AT_VECTOR_SIZE_ARCH + AT_VECTOR_SIZE_BASE + 1))
+
+#define FREQ_BITMAP_SIZE 8
+#define PRI_HISTORY_SIZE 3
+
+/* structure for tracking temporal utilization */
+typedef struct utilmap_node {
+	struct list_head link;
+    DECLARE_BITMAP(freq_bitmap, FREQ_BITMAP_SIZE);
+    int32_t frequency[PRI_HISTORY_SIZE];
+	// for debugging
+	unsigned long addr;
+	struct page *page;
+} util_node_t;
 
 typedef int vm_fault_t;
 
@@ -201,6 +216,9 @@ struct page {
 					   not kmapped, ie. highmem) */
 #endif /* WANT_PAGE_VIRTUAL */
 
+	unsigned long osa_flag;
+	util_node_t util_info;
+
 #ifdef LAST_CPUPID_NOT_IN_PAGE_FLAGS
 	int _last_cpupid;
 #endif
@@ -339,6 +357,16 @@ struct core_state {
 	atomic_t nr_threads;
 	struct core_thread dumper;
 	struct completion startup;
+};
+
+struct osa_hpage_stats {
+	unsigned int hpage_requirement;
+	unsigned int total_hpage_count;
+	unsigned long total_bpage_count;
+	unsigned int idle_hpage_count;
+	unsigned long idle_bpage_count;
+	unsigned int idle_tau; //idle page penalty parameter
+	unsigned int weight;
 };
 
 struct kioctx_table;
@@ -497,7 +525,12 @@ struct mm_struct {
 		struct hmm *hmm;
 #endif
 
-  struct rm_node *memory_reservations;
+		struct rm_node *memory_reservations;
+
+		struct osa_hpage_stats hpage_stats;
+		struct list_head osa_hpage_reclaim_link;
+		struct list_head osa_hpage_scan_link;
+		struct radix_tree_root root_popl_map;
 	} __randomize_layout;
 
 	/*

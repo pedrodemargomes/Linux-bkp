@@ -376,4 +376,6 @@ static inline bool thp_migration_supported(void)
 }
 #endif /* CONFIG_TRANSPARENT_HUGEPAGE */
 
+extern struct list_head osa_hpage_scan_list;
+
 #endif /* _LINUX_HUGE_MM_H */
