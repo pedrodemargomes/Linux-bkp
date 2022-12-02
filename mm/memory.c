@@ -3334,6 +3334,7 @@ static vm_fault_t do_anonymous_page(struct vm_fault *vmf)
 	vm_fault_t ret = 0;
 	pte_t entry;
 	struct rm_entry *rm_entry = NULL;
+	unsigned long *mask = NULL;
 	int i;
 
 	/* File mapping without ->vm_ops ? */
@@ -3387,8 +3388,7 @@ static vm_fault_t do_anonymous_page(struct vm_fault *vmf)
 		goto oom;
 	// pr_alert("> vma->vm_mm->owner->cred->uid = %ld", vma->vm_mm->owner->cred->uid);
 	if (GET_RM_ROOT(vma) && !uid_eq(vma->vm_mm->owner->cred->uid, GLOBAL_ROOT_UID) ) {
-		rm_entry = get_rm_entry_from_reservation(vma, vmf->address);
-		page = rm_alloc_from_reservation(vma, vmf->address);
+		page = rm_alloc_from_reservation(vma, vmf->address, &mask);
 		#ifdef DEBUG_RESERV_THP
 		pr_alert("rm page = %ld offset = %ld", page_to_pfn(page), page-get_page_from_rm((unsigned long)rm_entry->next_node) );
 		#endif
@@ -3455,11 +3455,12 @@ setpte:
 unlock:
 	pte_unmap_unlock(vmf->pte, vmf->ptl);
 	
-	if (rm_entry && bitmap_weight(rm_entry->mask, 512) > 64) {
+	if (mask != NULL && bitmap_weight(mask, 512) > 64) {
 		lru_add_drain_all(); // drena os LRUs
 		#ifdef DEBUG_RESERV_THP
 		pr_alert("bitmap_weight > 64");
 		#endif
+		rm_entry = get_rm_entry_from_reservation(vma, vmf->address);
 		unsigned long haddr = vmf->address & RESERV_MASK;
 		struct page *head = get_page_from_rm((unsigned long) rm_entry->next_node);
 		if (PageTransCompound(head)) {
@@ -4347,14 +4348,6 @@ static vm_fault_t handle_pte_fault(struct vm_fault *vmf)
 			vmf->pte = NULL;
 		}
 	}
-
-	// struct rm_entry *rm_entry = get_rm_entry_from_reservation(vmf->vma, vmf->address);
-	// if (rm_entry) {
-	// 	struct page *page = get_page_from_rm((unsigned long) rm_entry->next_node);
-	// 	int i;
-	// 	for (i = 0; i < 512; i++)
-	// 		pr_alert("handle_pte_fault page = %ld PageActive(page) = %d PageLRU(page) = %d page_count(page) = %d total_mapcount(page) = %d PageTransCompound(page) = %d", page_to_pfn(page+i), PageActive(page+i), PageLRU(page+i), page_count(page+i), total_mapcount(page+i), PageTransCompound(page+i));
-	// }
 
 	if (!vmf->pte) {
 		if (vma_is_anonymous(vmf->vma))

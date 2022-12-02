@@ -36,6 +36,7 @@
 #include "../mm/internal.h"
 
 #include <reservation_tracking/reserv_tracking.h>
+#include <linux/mem_reservations.h>
 
 #define SEC_SCAN_COUNT 0x8
 
@@ -46,9 +47,6 @@ DEFINE_SPINLOCK(osa_hpage_list_lock);
 DECLARE_WAIT_QUEUE_HEAD(osa_hpage_scand_wait);
 static struct workqueue_struct *osa_hpage_scand_wq __read_mostly;
 static struct work_struct osa_hpage_scan_work;
-
-struct list_head hugepage_worklist;
-static util_node_t *_util_node[512];
 
 static unsigned int freq_scan_count = 0;
 static unsigned int scan_sleep_millisecs = 4000;
@@ -172,6 +170,9 @@ static int osa_bpage_pte_walker(pte_t *pte, unsigned long addr,
 			}
 
 			frequency_update(f_node);
+			// struct rm_entry *reserv = get_rm_entry_from_reservation(walk->vma, addr);
+			// reserv->frequency += f_node->frequency[0];
+
 			set_page_idle(page);
 			put_page(page);
 		}
@@ -235,6 +236,8 @@ static int osa_hpage_pmd_walker(pmd_t *pmd, unsigned long addr,
 			}
 
 			frequency_update(f_node);
+			// struct rm_entry *reserv = get_rm_entry_from_reservation(walk->vma, addr);
+			// reserv->frequency = f_node->frequency[0];
 			set_page_idle(page);
 			put_page(page);
 		}
@@ -292,10 +295,12 @@ static int osa_hpage_do_walk(struct mm_struct *mm,
 		.private = walker_stats,
 	};
 
+	pr_alert("mm = %p", mm);
 	VM_BUG_ON(!mm);
 
 	vma = mm->mmap;
 
+	pr_alert("walker_stats = %p", walker_stats);
 	walker_stats->hpage_requirement = 0;
 	walker_stats->miss = 0;
 	walker_stats->hit = 0;
@@ -404,12 +409,13 @@ void osa_hpage_do_scan(void)
 		VM_BUG_ON(!mm);
 
 		memset(&walker_stats, 0, sizeof(struct osa_walker_stats));
+		pr_alert("osa_hpage_do_walk");
 		err = osa_hpage_do_walk(mm, &walker_stats);
 
 		pr_alert("err = %d", err);
 
 		if (!err) {
-			
+
 			pr_alert("[%d] pid %d: \n\tidle_hpage %u hpage %u idle_bpage %lu bpage %lu\n",
 					current->pid, tsk->pid, 
 					walker_stats.idle_hpage_count,

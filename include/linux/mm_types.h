@@ -216,7 +216,6 @@ struct page {
 					   not kmapped, ie. highmem) */
 #endif /* WANT_PAGE_VIRTUAL */
 
-	unsigned long osa_flag;
 	util_node_t util_info;
 
 #ifdef LAST_CPUPID_NOT_IN_PAGE_FLAGS

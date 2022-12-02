@@ -276,7 +276,7 @@ struct rm_entry *get_rm_entry_from_reservation(struct vm_area_struct *vma, unsig
   return entry;
 }
 
-struct page *rm_alloc_from_reservation(struct vm_area_struct *vma, unsigned long address) {
+struct page *rm_alloc_from_reservation(struct vm_area_struct *vma, unsigned long address, unsigned long **_mask) {
   int retPrmtHugePage;
 
   unsigned char level;
@@ -368,6 +368,7 @@ struct page *rm_alloc_from_reservation(struct vm_area_struct *vma, unsigned long
 
   // mark the page as used
   set_bit(region_offset, mask);
+  *_mask = mask;
 
 out_unlock:
   spin_unlock(next_lock);

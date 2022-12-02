@@ -28,6 +28,7 @@ struct rm_entry {
   void       *next_node;
   spinlock_t lock;
   spinlock_t lock_hugepage;
+  int32_t frequency;
   DECLARE_BITMAP(mask, 512); // unsigned long *
 };
 
@@ -66,7 +67,7 @@ static inline unsigned char get_mask_from_rm(unsigned long leaf_value) {
 // }
 
 extern struct rm_node *rm_node_create(void); 
-extern struct page *rm_alloc_from_reservation(struct vm_area_struct *vma, unsigned long address);
+extern struct page *rm_alloc_from_reservation(struct vm_area_struct *vma, unsigned long address, unsigned long **_mask);
 extern int rm_set_unused(struct vm_area_struct *vma, unsigned long address);
 extern void rm_destroy(struct rm_node *node, unsigned char level); 
 
