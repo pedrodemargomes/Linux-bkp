@@ -1591,6 +1591,7 @@ int __isolate_lru_page(struct page *page, isolate_mode_t mode)
 		}
 	}
 
+	pr_alert("(mode & ISOLATE_UNMAPPED) = %d page_mapped(page) = %d", (mode & ISOLATE_UNMAPPED), page_mapped(page));
 	if ((mode & ISOLATE_UNMAPPED) && page_mapped(page))
 		return ret;
 

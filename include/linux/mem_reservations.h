@@ -27,8 +27,9 @@
 struct rm_entry {
   void       *next_node;
   spinlock_t lock;
-  spinlock_t lock_hugepage;
-  int32_t frequency;
+  unsigned int timestamp;
+  bool part_pop;
+  struct list_head osa_hpage_scan_link;
   DECLARE_BITMAP(mask, 512); // unsigned long *
 };
 
@@ -75,5 +76,8 @@ extern int get_mask_weight_from_reservation(struct vm_area_struct *vma, unsigned
 struct rm_entry *get_rm_entry_from_reservation(struct vm_area_struct *vma, unsigned long address);
 
 extern void rm_release_reservation(struct vm_area_struct *vma, unsigned long address);
+extern void rm_release_reservation_fast(struct rm_entry *rm_entry);
+
+void rm_print_freq(struct rm_node *node, unsigned char level);
 
 #endif /* _LINUX_MEM_RESEVATIONS_H */

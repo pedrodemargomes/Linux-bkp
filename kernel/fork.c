@@ -643,10 +643,7 @@ void __mmdrop(struct mm_struct *mm)
 	check_mm(mm);
 	put_user_ns(mm->user_ns);
 	
-	osa_hpage_exit_list(mm);
 	if (mm->memory_reservations) {
-		// debug
-		// printk("Freeing the reservation map");
 		rm_destroy(mm->memory_reservations, 1);
 		mm->memory_reservations = NULL;
 	}
@@ -978,14 +975,10 @@ static struct mm_struct *mm_init(struct mm_struct *mm, struct task_struct *p,
 	mm->pmd_huge_pte = NULL;
 #endif
 
-	INIT_LIST_HEAD(&mm->osa_hpage_reclaim_link);
-	INIT_LIST_HEAD(&mm->osa_hpage_scan_link);
-	INIT_RADIX_TREE(&mm->root_popl_map, GFP_ATOMIC);
-
-	mm->hpage_stats.weight = 1;
 	if(!uid_eq(mm->owner->cred->uid, GLOBAL_ROOT_UID)) {
-		osa_hpage_enter_list(mm);
-		wake_up_interruptible(&osa_hpage_scand_wait);
+		mm->memory_reservations = rm_node_create(); 
+	} else {
+		mm->memory_reservations = NULL;
 	}
 
 	mm_init_uprobes_state(mm);
@@ -1006,15 +999,6 @@ static struct mm_struct *mm_init(struct mm_struct *mm, struct task_struct *p,
 		goto fail_nocontext;
 
 	mm->user_ns = get_user_ns(user_ns);
-
-  my_app = true;//(mm->owner->pid == 5555);
-  if (my_app) {
-    mm->memory_reservations = rm_node_create(); 
-    // debug
-    // printk("Creating the reservation map with root=%lx", mm->memory_reservations);
-  } else {
-    mm->memory_reservations = NULL;
-  }
 
 	return mm;
 

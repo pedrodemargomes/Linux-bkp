@@ -22,7 +22,10 @@
 #include <linux/kthread.h>
 #include <linux/freezer.h>
 #include <linux/page_owner.h>
+#include <linux/printk.h>
+#include <linux/mmzone.h>
 #include "internal.h"
+#include <reservation_tracking/reserv_tracking.h>
 
 #ifdef CONFIG_COMPACTION
 static inline void count_compact_event(enum vm_event_item item)
@@ -708,6 +711,7 @@ isolate_migratepages_block(struct compact_control *cc, unsigned long low_pfn,
 	 * delay for some time until fewer pages are isolated
 	 */
 	while (unlikely(too_many_isolated(zone))) {
+		pr_alert("too_many_isolated");
 		/* async migration should just abort */
 		if (cc->mode == MIGRATE_ASYNC)
 			return 0;
@@ -809,7 +813,9 @@ isolate_migratepages_block(struct compact_control *cc, unsigned long low_pfn,
 		 * It's possible to migrate LRU and non-lru movable pages.
 		 * Skip any other type of page
 		 */
+		pr_alert("compact page_to_pfn(page) = %ld", page_to_pfn(page));
 		if (!PageLRU(page)) {
+			pr_alert("!PageLRU(page)");
 			/*
 			 * __PageMovable can return false positive so we need
 			 * to verify it under page_lock.
@@ -828,12 +834,14 @@ isolate_migratepages_block(struct compact_control *cc, unsigned long low_pfn,
 
 			goto isolate_fail;
 		}
+		pr_alert("PageLRU(page)");
 
 		/*
 		 * Migration will fail if an anonymous page is pinned in memory,
 		 * so avoid taking lru_lock and isolating it unnecessarily in an
 		 * admittedly racy check.
 		 */
+		pr_alert("!page_mapping(page) && page_count(page) > page_mapcount(page)");
 		if (!page_mapping(page) &&
 		    page_count(page) > page_mapcount(page))
 			goto isolate_fail;
@@ -842,6 +850,7 @@ isolate_migratepages_block(struct compact_control *cc, unsigned long low_pfn,
 		 * Only allow to migrate anonymous pages in GFP_NOFS context
 		 * because those do not depend on fs locks.
 		 */
+		pr_alert("!(cc->gfp_mask & __GFP_FS) && page_mapping(page)");
 		if (!(cc->gfp_mask & __GFP_FS) && page_mapping(page))
 			goto isolate_fail;
 
@@ -869,6 +878,7 @@ isolate_migratepages_block(struct compact_control *cc, unsigned long low_pfn,
 
 		lruvec = mem_cgroup_page_lruvec(page, zone->zone_pgdat);
 
+		pr_alert("__isolate_lru_page(page, isolate_mode) != 0");
 		/* Try isolate the page */
 		if (__isolate_lru_page(page, isolate_mode) != 0)
 			goto isolate_fail;
@@ -881,7 +891,9 @@ isolate_migratepages_block(struct compact_control *cc, unsigned long low_pfn,
 				NR_ISOLATED_ANON + page_is_file_cache(page));
 
 isolate_success:
+		pr_alert("isolate_success");
 		list_add(&page->lru, &cc->migratepages);
+		pr_alert("list_add(&page->lru, &cc->migratepages);");
 		cc->nr_migratepages++;
 		nr_isolated++;
 
@@ -902,6 +914,7 @@ isolate_success:
 
 		continue;
 isolate_fail:
+		pr_alert("isolate_fail");
 		if (!skip_on_failure)
 			continue;
 
@@ -1222,7 +1235,7 @@ int sysctl_compact_unevictable_allowed __read_mostly = 1;
  * compact_control.
  */
 static isolate_migrate_t isolate_migratepages(struct zone *zone,
-					struct compact_control *cc)
+					struct compact_control *cc, struct list_head *pageblocks_to_migrate)
 {
 	unsigned long block_start_pfn;
 	unsigned long block_end_pfn;
@@ -1248,19 +1261,24 @@ static isolate_migrate_t isolate_migratepages(struct zone *zone,
 	 * Iterate over whole pageblocks until we find the first suitable.
 	 * Do not cross the free scanner.
 	 */
-	for (; block_end_pfn <= cc->free_pfn;
-			low_pfn = block_end_pfn,
-			block_start_pfn = block_end_pfn,
-			block_end_pfn += pageblock_nr_pages) {
+	// for (; block_end_pfn <= cc->free_pfn;
+	// 		low_pfn = block_end_pfn,
+	// 		block_start_pfn = block_end_pfn,
+	// 		block_end_pfn += pageblock_nr_pages) {
+	struct pageblock *pos, *aux;
+	list_for_each_entry_safe(pos, aux, pageblocks_to_migrate, list) {
+		low_pfn = block_start_pfn = pos->start_pfn;
+		block_end_pfn = block_start_pfn + pageblock_nr_pages;
+		pr_alert("block_start_pfn = %lu block_end_pfn = %lu", block_start_pfn, block_end_pfn);
 
 		/*
 		 * This can potentially iterate a massively long zone with
 		 * many pageblocks unsuitable, so periodically check if we
 		 * need to schedule, or even abort async compaction.
 		 */
-		if (!(low_pfn % (SWAP_CLUSTER_MAX * pageblock_nr_pages))
-						&& compact_should_abort(cc))
-			break;
+		// if (!(low_pfn % (SWAP_CLUSTER_MAX * pageblock_nr_pages))
+		// 				&& compact_should_abort(cc))
+		// 	break;
 
 		page = pageblock_pfn_to_page(block_start_pfn, block_end_pfn,
 									zone);
@@ -1291,6 +1309,7 @@ static isolate_migrate_t isolate_migratepages(struct zone *zone,
 		 * we failed and compact_zone should decide if we should
 		 * continue or not.
 		 */
+		list_del(&pos->list);
 		break;
 	}
 
@@ -1533,7 +1552,7 @@ bool compaction_zonelist_suitable(struct alloc_context *ac, int order,
 	return false;
 }
 
-static enum compact_result compact_zone(struct zone *zone, struct compact_control *cc)
+static enum compact_result compact_zone(struct zone *zone, struct compact_control *cc, struct list_head *pageblocks_to_migrate)
 {
 	enum compact_result ret;
 	unsigned long start_pfn = zone->zone_start_pfn;
@@ -1552,21 +1571,23 @@ static enum compact_result compact_zone(struct zone *zone, struct compact_contro
 	INIT_LIST_HEAD(&cc->migratepages);
 
 	cc->migratetype = gfpflags_to_migratetype(cc->gfp_mask);
-	ret = compaction_suitable(zone, cc->order, cc->alloc_flags,
-							cc->classzone_idx);
-	/* Compaction is likely to fail */
-	if (ret == COMPACT_SUCCESS || ret == COMPACT_SKIPPED)
-		return ret;
+	// ret = compaction_suitable(zone, cc->order, cc->alloc_flags,
+	// 						cc->classzone_idx);
+	// /* Compaction is likely to fail */
+	// if (ret == COMPACT_SUCCESS || ret == COMPACT_SKIPPED)
+	// 	return ret;
 
-	/* huh, compaction_suitable is returning something unexpected */
-	VM_BUG_ON(ret != COMPACT_CONTINUE);
+	// /* huh, compaction_suitable is returning something unexpected */
+	// VM_BUG_ON(ret != COMPACT_CONTINUE);
 
 	/*
 	 * Clear pageblock skip if there were failures recently and compaction
 	 * is about to be retried after being deferred.
 	 */
-	if (compaction_restarting(zone, cc->order))
+	if (compaction_restarting(zone, cc->order)) {
+		pr_alert("compaction_restarting(zone, cc->order)");
 		__reset_isolation_suitable(zone);
+	}
 
 	/*
 	 * Setup to move all movable pages to the end of the zone. Used cached
@@ -1579,6 +1600,7 @@ static enum compact_result compact_zone(struct zone *zone, struct compact_contro
 		cc->free_pfn = pageblock_start_pfn(end_pfn - 1);
 	} else {
 		cc->migrate_pfn = zone->compact_cached_migrate_pfn[sync];
+		pr_alert("zone->compact_cached_migrate_pfn[sync] = %lu", zone->compact_cached_migrate_pfn[sync]);
 		cc->free_pfn = zone->compact_cached_free_pfn;
 		if (cc->free_pfn < start_pfn || cc->free_pfn >= end_pfn) {
 			cc->free_pfn = pageblock_start_pfn(end_pfn - 1);
@@ -1593,6 +1615,7 @@ static enum compact_result compact_zone(struct zone *zone, struct compact_contro
 		if (cc->migrate_pfn == start_pfn)
 			cc->whole_zone = true;
 	}
+	pr_alert("comapct starting at pfn = %lu end_pfn = %lu pageblock_nr_pages = %ld", cc->migrate_pfn, end_pfn, pageblock_nr_pages);
 
 	cc->last_migrated_pfn = 0;
 
@@ -1601,83 +1624,91 @@ static enum compact_result compact_zone(struct zone *zone, struct compact_contro
 
 	migrate_prep_local();
 
-	while ((ret = compact_finished(zone, cc)) == COMPACT_CONTINUE) {
-		int err;
+	// while ((ret = compact_finished(zone, cc)) == COMPACT_CONTINUE) {
+	int err;
+	if (list_empty(pageblocks_to_migrate))
+		goto out;
 
-		switch (isolate_migratepages(zone, cc)) {
-		case ISOLATE_ABORT:
-			ret = COMPACT_CONTENDED;
-			putback_movable_pages(&cc->migratepages);
-			cc->nr_migratepages = 0;
-			goto out;
-		case ISOLATE_NONE:
-			/*
-			 * We haven't isolated and migrated anything, but
-			 * there might still be unflushed migrations from
-			 * previous cc->order aligned block.
-			 */
-			goto check_drain;
-		case ISOLATE_SUCCESS:
-			;
-		}
-
-		err = migrate_pages(&cc->migratepages, compaction_alloc,
-				compaction_free, (unsigned long)cc, cc->mode,
-				MR_COMPACTION);
-
-		trace_mm_compaction_migratepages(cc->nr_migratepages, err,
-							&cc->migratepages);
-
-		/* All pages were either migrated or will be released */
+	pr_alert("CALL isolate_migratepages");
+	switch (isolate_migratepages(zone, cc, pageblocks_to_migrate)) {
+	case ISOLATE_ABORT:
+		ret = COMPACT_CONTENDED;
+		putback_movable_pages(&cc->migratepages);
 		cc->nr_migratepages = 0;
-		if (err) {
-			putback_movable_pages(&cc->migratepages);
-			/*
-			 * migrate_pages() may return -ENOMEM when scanners meet
-			 * and we want compact_finished() to detect it
-			 */
-			if (err == -ENOMEM && !compact_scanners_met(cc)) {
-				ret = COMPACT_CONTENDED;
-				goto out;
-			}
-			/*
-			 * We failed to migrate at least one page in the current
-			 * order-aligned block, so skip the rest of it.
-			 */
-			if (cc->direct_compaction &&
-						(cc->mode == MIGRATE_ASYNC)) {
-				cc->migrate_pfn = block_end_pfn(
-						cc->migrate_pfn - 1, cc->order);
-				/* Draining pcplists is useless in this case */
-				cc->last_migrated_pfn = 0;
+		pr_alert("ISOLATE ABORT");
+		goto out;
+	case ISOLATE_NONE:
+		/*
+			* We haven't isolated and migrated anything, but
+			* there might still be unflushed migrations from
+			* previous cc->order aligned block.
+			*/
+		pr_alert("check_drain");
+		goto check_drain;
+	case ISOLATE_SUCCESS:
+		;
+	}
 
-			}
+	pr_alert("CALL migrate_pages");
+	err = migrate_pages(&cc->migratepages, compaction_alloc,
+			compaction_free, (unsigned long)cc, cc->mode,
+			MR_COMPACTION);
+
+	trace_mm_compaction_migratepages(cc->nr_migratepages, err,
+						&cc->migratepages);
+
+	/* All pages were either migrated or will be released */
+	cc->nr_migratepages = 0;
+	if (err) {
+		pr_alert("err != 0");
+		putback_movable_pages(&cc->migratepages);
+		/*
+			* migrate_pages() may return -ENOMEM when scanners meet
+			* and we want compact_finished() to detect it
+			*/
+		if (err == -ENOMEM && !compact_scanners_met(cc)) {
+			ret = COMPACT_CONTENDED;
+			goto out;
 		}
+		/*
+			* We failed to migrate at least one page in the current
+			* order-aligned block, so skip the rest of it.
+			*/
+		if (cc->direct_compaction &&
+					(cc->mode == MIGRATE_ASYNC)) {
+			cc->migrate_pfn = block_end_pfn(
+					cc->migrate_pfn - 1, cc->order);
+			/* Draining pcplists is useless in this case */
+			cc->last_migrated_pfn = 0;
+
+		}
+	}
+	pr_alert("err = 0");
 
 check_drain:
-		/*
-		 * Has the migration scanner moved away from the previous
-		 * cc->order aligned block where we migrated from? If yes,
-		 * flush the pages that were freed, so that they can merge and
-		 * compact_finished() can detect immediately if allocation
-		 * would succeed.
-		 */
-		if (cc->order > 0 && cc->last_migrated_pfn) {
-			int cpu;
-			unsigned long current_block_start =
-				block_start_pfn(cc->migrate_pfn, cc->order);
+	/*
+		* Has the migration scanner moved away from the previous
+		* cc->order aligned block where we migrated from? If yes,
+		* flush the pages that were freed, so that they can merge and
+		* compact_finished() can detect immediately if allocation
+		* would succeed.
+		*/
+	if (cc->order > 0 && cc->last_migrated_pfn) {
+		int cpu;
+		unsigned long current_block_start =
+			block_start_pfn(cc->migrate_pfn, cc->order);
 
-			if (cc->last_migrated_pfn < current_block_start) {
-				cpu = get_cpu();
-				lru_add_drain_cpu(cpu);
-				drain_local_pages(zone);
-				put_cpu();
-				/* No more flushing until we migrate again */
-				cc->last_migrated_pfn = 0;
-			}
+		if (cc->last_migrated_pfn < current_block_start) {
+			cpu = get_cpu();
+			lru_add_drain_cpu(cpu);
+			drain_local_pages(zone);
+			put_cpu();
+			/* No more flushing until we migrate again */
+			cc->last_migrated_pfn = 0;
+		}
 		}
 
-	}
+	// }
 
 out:
 	/*
@@ -1727,7 +1758,7 @@ static enum compact_result compact_zone_order(struct zone *zone, int order,
 		.ignore_block_suitable = (prio == MIN_COMPACT_PRIORITY)
 	};
 
-	ret = compact_zone(zone, &cc);
+	ret = 0;//compact_zone(zone, &cc);
 
 	VM_BUG_ON(!list_empty(&cc.freepages));
 	VM_BUG_ON(!list_empty(&cc.migratepages));
@@ -1825,7 +1856,7 @@ static void compact_node(int nid)
 	struct compact_control cc = {
 		.order = -1,
 		.mode = MIGRATE_SYNC,
-		.ignore_skip_hint = true,
+		.ignore_skip_hint = false,
 		.whole_zone = true,
 		.gfp_mask = GFP_KERNEL,
 	};
@@ -1839,11 +1870,101 @@ static void compact_node(int nid)
 
 		cc.zone = zone;
 
-		compact_zone(zone, &cc);
+		// compact_zone(zone, &cc);
 
 		VM_BUG_ON(!list_empty(&cc.freepages));
 		VM_BUG_ON(!list_empty(&cc.migratepages));
 	}
+}
+
+void compact_reservation(struct list_head *pageblocks_to_migrate)
+{
+	struct compact_control cc = {
+		.order = -1,
+		.mode = MIGRATE_SYNC,
+		.ignore_skip_hint = true,
+		.whole_zone = false,
+		.gfp_mask = GFP_KERNEL,
+	};
+
+	/*
+	 * These counters track activities during zone compaction.  Initialize
+	 * them before compacting a new zone.
+	 */
+	cc.total_migrate_scanned = 0;
+	cc.total_free_scanned = 0;
+	cc.nr_migratepages = 0;
+	cc.nr_freepages = 0;
+	INIT_LIST_HEAD(&cc.freepages);
+	INIT_LIST_HEAD(&cc.migratepages);
+
+	pg_data_t *pgdat = NODE_DATA(0);
+	struct zone *zone = &pgdat->node_zones[ZONE_NORMAL];
+	if (!populated_zone(zone))
+		return;
+
+	cc.zone = zone;
+
+	struct pageblock *pos, *aux;
+	list_for_each_entry_safe(pos, aux, pageblocks_to_migrate, list) {
+		pr_alert("start_pfn = %lu end_pfn = %lu", pos->start_pfn, pos->start_pfn+512);
+		int ret = isolate_migratepages_block(&cc, pos->start_pfn,
+			pos->start_pfn+512, ISOLATE_UNEVICTABLE);
+		pr_alert("num migrate pages isolated = %lu", ret - pos->start_pfn);
+	}
+	
+	int err = migrate_pages(&cc.migratepages, compaction_alloc,
+			compaction_free, (unsigned long)&cc, cc.mode,
+			MR_COMPACTION);
+	
+	pr_alert("err = %d", err);
+	if (err) {
+		putback_movable_pages(&cc.migratepages);
+		/*
+			* migrate_pages() may return -ENOMEM when scanners meet
+			* and we want compact_finished() to detect it
+			*/
+		if (err == -ENOMEM && !compact_scanners_met(&cc)) {
+			// ret = COMPACT_CONTENDED;
+			goto out;
+		}
+		/*
+			* We failed to migrate at least one page in the current
+			* order-aligned block, so skip the rest of it.
+			*/
+		if (cc.direct_compaction &&
+					(cc.mode == MIGRATE_ASYNC)) {
+			cc.migrate_pfn = block_end_pfn(
+					cc.migrate_pfn - 1, cc.order);
+			/* Draining pcplists is useless in this case */
+			cc.last_migrated_pfn = 0;
+
+		}
+	}
+
+out:
+	/*
+	 * Release free pages and update where the free scanner should restart,
+	 * so we don't leave any returned pages behind in the next attempt.
+	 */
+	if (cc.nr_freepages > 0) {
+		pr_alert("c->nr_freepages > 0");
+		unsigned long free_pfn = release_freepages(&cc.freepages);
+
+		cc.nr_freepages = 0;
+		VM_BUG_ON(free_pfn == 0);
+		/* The cached pfn is always the first in a pageblock */
+		free_pfn = pageblock_start_pfn(free_pfn);
+		/*
+		 * Only go back, not forward. The cached pfn might have been
+		 * already reset to zone end in compact_finished()
+		 */
+		if (free_pfn > zone->compact_cached_free_pfn)
+			zone->compact_cached_free_pfn = free_pfn;
+	}
+
+	VM_BUG_ON(!list_empty(&cc.freepages));
+	VM_BUG_ON(!list_empty(&cc.migratepages));
 }
 
 /* Compact all nodes in the system */
@@ -1973,7 +2094,7 @@ static void kcompactd_do_work(pg_data_t *pgdat)
 			return;
 
 		cc.zone = zone;
-		status = compact_zone(zone, &cc);
+		status = 0;//compact_zone(zone, &cc);
 
 		if (status == COMPACT_SUCCESS) {
 			compaction_defer_reset(zone, cc.order, false);

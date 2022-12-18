@@ -216,8 +216,6 @@ struct page {
 					   not kmapped, ie. highmem) */
 #endif /* WANT_PAGE_VIRTUAL */
 
-	util_node_t util_info;
-
 #ifdef LAST_CPUPID_NOT_IN_PAGE_FLAGS
 	int _last_cpupid;
 #endif
@@ -526,10 +524,6 @@ struct mm_struct {
 
 		struct rm_node *memory_reservations;
 
-		struct osa_hpage_stats hpage_stats;
-		struct list_head osa_hpage_reclaim_link;
-		struct list_head osa_hpage_scan_link;
-		struct radix_tree_root root_popl_map;
 	} __randomize_layout;
 
 	/*

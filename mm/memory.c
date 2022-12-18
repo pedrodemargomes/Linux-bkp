@@ -80,6 +80,8 @@
 #include <asm/tlbflush.h>
 #include <asm/pgtable.h>
 
+#include <reservation_tracking/reserv_tracking.h>
+
 #include "internal.h"
 
 #if defined(LAST_CPUPID_NOT_IN_PAGE_FLAGS) && !defined(CONFIG_COMPILE_TEST)
@@ -3400,6 +3402,7 @@ static vm_fault_t do_anonymous_page(struct vm_fault *vmf)
 	}
 	if (!page) {
 		page = alloc_zeroed_user_highpage_movable(vma, vmf->address);
+		// pr_alert("page_zone(page)->zone_start_pfn = %lu", page_zone(page)->zone_start_pfn);
 	}
 	if (!page)
 		goto oom;
@@ -3498,6 +3501,7 @@ unlock:
 		int retPrmtHugePage = promote_huge_page_address(vma, head, haddr);
 		
 		if (!retPrmtHugePage) {
+			osa_hpage_exit_list(rm_entry);
 			#ifdef DEBUG_RESERV_THP
 			pr_alert("rm_alloc FIM promote page retPrmtHugePage = %d page_to_pfn(head) = %ld page_count(head) = %d compound_mapcount(head) = %d total_mapcount(head) = %d PageActive(head) = %d PageTransCompound(head) = %d", retPrmtHugePage, page_to_pfn(head), page_count(head), compound_mapcount(head), total_mapcount(head), PageActive(head), PageTransCompound(head));
 			
