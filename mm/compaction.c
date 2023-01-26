@@ -596,7 +596,6 @@ isolate_freepages_range(struct compact_control *cc,
 			unsigned long start_pfn, unsigned long end_pfn)
 {
 	unsigned long isolated, pfn, block_start_pfn, block_end_pfn;
-	LIST_HEAD(freelist);
 
 	pfn = start_pfn;
 	block_start_pfn = pageblock_start_pfn(pfn);
@@ -628,7 +627,7 @@ isolate_freepages_range(struct compact_control *cc,
 			break;
 
 		isolated = isolate_freepages_block(cc, &isolate_start_pfn,
-						block_end_pfn, &freelist, true);
+						block_end_pfn, &cc->freepages, false);
 
 		/*
 		 * In strict mode, isolate_freepages_block() returns 0 if
@@ -646,13 +645,7 @@ isolate_freepages_range(struct compact_control *cc,
 	}
 
 	/* __isolate_free_page() does not map the pages */
-	map_pages(&freelist);
-
-	if (pfn < end_pfn) {
-		/* Loop terminated early, cleanup. */
-		release_freepages(&freelist);
-		return 0;
-	}
+	map_pages(&cc->freepages);
 
 	/* We don't use freelists for anything. */
 	return pfn;
@@ -773,6 +766,7 @@ isolate_migratepages_block(struct compact_control *cc, unsigned long low_pfn,
 
 		if (!valid_page)
 			valid_page = page;
+		pr_alert("pfn = %lu page_count = %d", page_to_pfn(page), page_count(page));
 
 		/*
 		 * Skip if free. We read page order here without zone lock
@@ -1907,10 +1901,15 @@ void compact_reservation(struct list_head *pageblocks_to_migrate)
 
 	struct pageblock *pos, *aux;
 	list_for_each_entry_safe(pos, aux, pageblocks_to_migrate, list) {
+		int old_nr_migratepages = cc.nr_migratepages;
 		pr_alert("start_pfn = %lu end_pfn = %lu", pos->start_pfn, pos->start_pfn+512);
-		int ret = isolate_migratepages_block(&cc, pos->start_pfn,
+		unsigned long ret = isolate_freepages_range(&cc, pos->start_pfn, pos->start_pfn+512);
+		pr_alert("isolate_freepages_range ret = %lu", ret);
+		
+		isolate_migratepages_block(&cc, pos->start_pfn,
 			pos->start_pfn+512, ISOLATE_UNEVICTABLE);
-		pr_alert("num migrate pages isolated = %lu", ret - pos->start_pfn);
+		pr_alert("num migrate pages isolated = %lu", cc.nr_migratepages - old_nr_migratepages);
+		pr_alert("nr_freepages = %lu", cc.nr_freepages);
 	}
 	
 	int err = migrate_pages(&cc.migratepages, compaction_alloc,

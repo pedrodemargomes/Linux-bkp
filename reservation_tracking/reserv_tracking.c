@@ -138,6 +138,7 @@ void osa_hpage_do_scan(void)
 	pr_alert("osa_hpage_do_scan");
 
 	struct list_head pageblocks_to_migrate;
+	int list_size = 0;
 	INIT_LIST_HEAD(&pageblocks_to_migrate);
 
 	// Scanning partial populated reservations
@@ -150,6 +151,9 @@ void osa_hpage_do_scan(void)
 			new_pageblock->start_pfn = page_to_pfn(get_page_from_rm((unsigned long)rm_entry->next_node));
 			list_add_tail(&new_pageblock->list, &pageblocks_to_migrate);
 			rm_release_reservation_fast(rm_entry);
+			list_size++;
+			if (list_size > 50)
+				break;
 		}
 	}
 	spin_unlock(&osa_hpage_list_lock);

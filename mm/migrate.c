@@ -1026,8 +1026,10 @@ static int __unmap_and_move(struct page *page, struct page *newpage,
 		 * avoid the use of lock_page for direct compaction
 		 * altogether.
 		 */
-		if (current->flags & PF_MEMALLOC)
+		if (current->flags & PF_MEMALLOC) {
+			pr_alert("current->flags & PF_MEMALLOC");
 			goto out;
+		}
 
 		lock_page(page);
 	}
@@ -1174,8 +1176,10 @@ static ICE_noinline int unmap_and_move(new_page_t get_new_page,
 		return -ENOMEM;
 
 	newpage = get_new_page(page, private);
-	if (!newpage)
+	if (!newpage) {
+		pr_alert("!newpage");
 		return -ENOMEM;
+	}
 
 	if (page_count(page) == 1) {
 		/* page was freed from under us. So we are done. */
@@ -1194,6 +1198,7 @@ static ICE_noinline int unmap_and_move(new_page_t get_new_page,
 		goto out;
 	}
 
+	pr_alert("CALL __unmap_and_move");
 	rc = __unmap_and_move(page, newpage, force, mode);
 	if (rc == MIGRATEPAGE_SUCCESS)
 		set_page_owner_migrate_reason(newpage, reason);

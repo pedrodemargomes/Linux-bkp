@@ -379,7 +379,7 @@ struct page *rm_alloc_from_reservation(struct vm_area_struct *vma, unsigned long
   struct page *page, *head;
   spinlock_t  *next_lock;
 
-  gfp_t gfp           = ((GFP_HIGHUSER | __GFP_NOMEMALLOC | __GFP_NOWARN) & ~__GFP_RECLAIM);
+  gfp_t gfp           = ((GFP_HIGHUSER_MOVABLE | __GFP_NOMEMALLOC | __GFP_NOWARN) & ~__GFP_RECLAIM);
 	unsigned long haddr = address & RESERV_MASK;
   int region_offset   = (address & (~RESERV_MASK)) >> PAGE_SHIFT;
   bool my_app         = true;//(vma->vm_mm->owner->pid == 5555);
