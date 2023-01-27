@@ -67,7 +67,7 @@ static ssize_t alloc_scan_sleep_store(struct kobject *kobj,
 
 	scan_sleep_millisecs = msecs;
 	sleep_expire = 0;
-	wake_up_interruptible(&osa_hpage_scand_wait);
+	// wake_up_interruptible(&osa_hpage_scand_wait);
 	return count;
 }
 static struct kobj_attribute alloc_sleep_millisecs_attr =
@@ -87,12 +87,12 @@ struct attribute_group reserve_tracking_attr_group = {
 
 static int osa_hpage_scand_wait_event(void)
 {
-	return scan_sleep_millisecs && !list_empty(&osa_hpage_scan_list);
+	return scan_sleep_millisecs; //&& !list_empty(&osa_hpage_scan_list);
 }
 
 static int osa_hpage_scand_has_work(void)
 {
-	return scan_sleep_millisecs && !list_empty(&osa_hpage_scan_list);
+	return scan_sleep_millisecs; //&& !list_empty(&osa_hpage_scan_list);
 }
 
 
@@ -152,14 +152,14 @@ void osa_hpage_do_scan(void)
 			list_add_tail(&new_pageblock->list, &pageblocks_to_migrate);
 			rm_release_reservation_fast(rm_entry);
 			list_size++;
-			if (list_size > 50)
+			if (list_size > 500)
 				break;
 		}
 	}
 	spin_unlock(&osa_hpage_list_lock);
 
-	if (!list_empty(&pageblocks_to_migrate))
-		compact_reservation(&pageblocks_to_migrate);
+	// if (!list_empty(&pageblocks_to_migrate))
+	// 	compact_reservation(&pageblocks_to_migrate);
 
 	return;
 }
@@ -194,8 +194,8 @@ static int start_stop_osa_hpage_scand(void)
 		}
 	}
 
-	if (!list_empty(&osa_hpage_scan_list))
-		wake_up_interruptible(&osa_hpage_scand_wait);
+	// if (!list_empty(&osa_hpage_scan_list))
+	wake_up_interruptible(&osa_hpage_scand_wait);
 
 fail:
 	return err;

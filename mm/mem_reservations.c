@@ -177,9 +177,9 @@ extern void rm_release_reservation_fast(struct rm_entry *rm_entry) {
     if (unused) {
       mod_node_page_state(page_pgdat(page), NR_MEM_RESERVATIONS_RESERVED, -unused);
     }
-    #ifdef DEBUG_RESERV_THP
-    pr_alert("rm_release PageTransCompound(page) = %d page_to_pfn(page) = %ld PageLRU(page) = %d page_count(page) = %d total_mapcount(page) = %d", PageTransCompound(page), page_to_pfn(page), PageLRU(page), page_count(page), total_mapcount(page));
-    #endif
+    // #ifdef DEBUG_RESERV_THP
+    pr_alert("rm_release PageTransCompound(page) = %d page_to_pfn(page) = %ld PageLRU(page) = %d page_count(page) = %d total_mapcount(page) = %d page_zonenum(page) = %d", PageTransCompound(page), page_to_pfn(page), PageLRU(page), page_count(page), total_mapcount(page), page_zonenum(page));
+    // #endif
     if (PageTransCompound(page)) {
       #ifdef DEBUG_RESERV_THP
       struct anon_vma_chain *vmac;
@@ -224,10 +224,10 @@ extern void rm_release_reservation_fast(struct rm_entry *rm_entry) {
       for (i = 0; i < RESERV_NR; i++) {
         put_page(page+i);
       }
-      for (i = 0; i < RESERV_NR; i++) {
-        if (PageLRU(page+i))
-          pr_alert("rm_release page = %ld PageActive(page) = %d PageLRU(page) = %d page_count(page) = %d total_mapcount(page) = %d page->_mapcount = %d PageTransCompound(page) = %d page_zone(page)->zone_start_pfn = %lu", page_to_pfn(page+i), PageActive(page+i), PageLRU(page+i), page_count(page+i), total_mapcount(page+i), atomic_read(&(page+i)->_mapcount), PageTransCompound(page+i), page_zone(page+i)->zone_start_pfn);
-      }
+      // for (i = 0; i < RESERV_NR; i++) {
+      //   if (PageLRU(page+i))
+      //     pr_alert("rm_release page = %ld PageActive(page) = %d PageLRU(page) = %d page_count(page) = %d total_mapcount(page) = %d page->_mapcount = %d PageTransCompound(page) = %d page_zone(page)->zone_start_pfn = %lu", page_to_pfn(page+i), PageActive(page+i), PageLRU(page+i), page_count(page+i), total_mapcount(page+i), atomic_read(&(page+i)->_mapcount), PageTransCompound(page+i), page_zone(page+i)->zone_start_pfn);
+      // }
 
     }
 
@@ -438,7 +438,7 @@ struct page *rm_alloc_from_reservation(struct vm_area_struct *vma, unsigned long
     INIT_LIST_HEAD(&cur_node->items[index].osa_hpage_scan_link);
     cur_node->items[index].timestamp = jiffies_to_msecs(jiffies);
     osa_hpage_enter_list(&cur_node->items[index]);
-    wake_up_interruptible(&osa_hpage_scand_wait);
+    // wake_up_interruptible(&osa_hpage_scand_wait);
   } else {
     mod_node_page_state(page_pgdat(page), NR_MEM_RESERVATIONS_RESERVED, -1);
     // if (PageTransCompound(page)) {
