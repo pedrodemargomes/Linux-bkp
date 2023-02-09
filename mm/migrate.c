@@ -510,6 +510,7 @@ int migrate_page_move_mapping(struct address_space *mapping,
 	 */
 	newpage->index = page->index;
 	newpage->mapping = page->mapping;
+	pr_alert("migrate_page_move_mapping");
 	page_ref_add(newpage, hpage_nr_pages(page)); /* add cache reference */
 	if (PageSwapBacked(page)) {
 		__SetPageSwapBacked(newpage);
@@ -1177,7 +1178,6 @@ static ICE_noinline int unmap_and_move(new_page_t get_new_page,
 
 	newpage = get_new_page(page, private);
 	if (!newpage) {
-		pr_alert("!newpage");
 		return -ENOMEM;
 	}
 
@@ -1198,7 +1198,6 @@ static ICE_noinline int unmap_and_move(new_page_t get_new_page,
 		goto out;
 	}
 
-	pr_alert("CALL __unmap_and_move");
 	rc = __unmap_and_move(page, newpage, force, mode);
 	if (rc == MIGRATEPAGE_SUCCESS)
 		set_page_owner_migrate_reason(newpage, reason);

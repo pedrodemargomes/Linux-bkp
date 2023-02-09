@@ -91,11 +91,11 @@ extern void rm_release_reservation(struct vm_area_struct *vma, unsigned long add
     if (unused) {
       mod_node_page_state(page_pgdat(page), NR_MEM_RESERVATIONS_RESERVED, -unused);
     }
-    #ifdef DEBUG_RESERV_THP
+    // #ifdef DEBUG_RESERV_THP
     pr_alert("rm_release PageTransCompound(page) = %d page_to_pfn(page) = %ld page_count(page) = %d total_mapcount(page) = %d", PageTransCompound(page), page_to_pfn(page), page_count(page), total_mapcount(page));
-    #endif
+    // #endif
     if (PageTransCompound(page)) {
-      #ifdef DEBUG_RESERV_THP
+      // #ifdef DEBUG_RESERV_THP
       struct anon_vma_chain *vmac;
       struct vm_area_struct *vma;
       struct anon_vma *anon_vma;
@@ -119,7 +119,7 @@ extern void rm_release_reservation(struct vm_area_struct *vma, unsigned long add
         anon_vma_unlock_read(anon_vma);
       }
       pr_alert("put_page");
-      #endif
+      // #endif
       put_page(page);
       #ifdef DEBUG_RESERV_THP
       for (i = 0; i < RESERV_NR; i++) {
@@ -164,11 +164,7 @@ extern void rm_release_reservation_fast(struct rm_entry *rm_entry) {
   unsigned long *mask;
 
   struct page *page;
-  spinlock_t  *next_lock;
 
-  next_lock = &rm_entry->lock;
-
-  spin_lock(next_lock);
   leaf_value = (unsigned long)(rm_entry->next_node);
   mask = (unsigned long *)(rm_entry->mask);
   if (leaf_value != 0) { 
@@ -234,7 +230,6 @@ extern void rm_release_reservation_fast(struct rm_entry *rm_entry) {
     rm_entry->next_node = 0; 
     list_del(&rm_entry->osa_hpage_scan_link);
   }
-  spin_unlock(next_lock);
   return;
 }
 
@@ -488,6 +483,7 @@ void rm_destroy(struct rm_node *node, unsigned char level) { //not thread-safe
         mask = (unsigned long *)(cur_node->items[index].mask);
         next_lock = &cur_node->items[index].lock;
         spin_lock(next_lock);
+        VM_BUG_ON(!(unsigned long)(cur_node->items[index].next_node));
         osa_hpage_exit_list(&cur_node->items[index]);
         page = get_page_from_rm(leaf_value);
 
@@ -495,9 +491,9 @@ void rm_destroy(struct rm_node *node, unsigned char level) { //not thread-safe
         if (unused) {
           mod_node_page_state(page_pgdat(page), NR_MEM_RESERVATIONS_RESERVED, -unused);
         }
-        #ifdef DEBUG_RESERV_THP
+        // #ifdef DEBUG_RESERV_THP
         pr_alert("rm_destroy PageTransCompound(page) = %d page_to_pfn(page) = %ld page_count(page) = %d total_mapcount(page) = %d", PageTransCompound(page), page_to_pfn(page), page_count(page), total_mapcount(page));
-        #endif
+        // #endif
         if (PageTransCompound(page)) {
           #ifdef DEBUG_RESERV_THP
           struct anon_vma_chain *vmac;

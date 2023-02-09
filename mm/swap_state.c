@@ -121,6 +121,7 @@ int __add_to_swap_cache(struct page *page, swp_entry_t entry)
 	VM_BUG_ON_PAGE(PageSwapCache(page), page);
 	VM_BUG_ON_PAGE(!PageSwapBacked(page), page);
 
+	pr_alert("__add_to_swap_cache");
 	page_ref_add(page, nr);
 	SetPageSwapCache(page);
 

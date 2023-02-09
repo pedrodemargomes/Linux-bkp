@@ -134,6 +134,7 @@ void osa_hpage_do_scan(void)
 	struct rm_entry *rm_entry, *aux;
 	int err, i;
 	unsigned int timestamp;
+	spinlock_t  *next_lock;
 
 	pr_alert("osa_hpage_do_scan");
 
@@ -141,19 +142,35 @@ void osa_hpage_do_scan(void)
 	int list_size = 0;
 	INIT_LIST_HEAD(&pageblocks_to_migrate);
 
+	// PROBLEMA
+	/*
+	COMPACT									PROCESS rm_release_reservation
+	spin_lock(&osa_hpage_list_lock);		
+											spin_lock(next_lock);
+	spin_lock(next_lock);					
+											spin_lock(&osa_hpage_list_lock);
+	
+	*/
+	
 	// Scanning partial populated reservations
 	spin_lock(&osa_hpage_list_lock);
 	list_for_each_entry_safe(rm_entry, aux, &osa_hpage_scan_list, osa_hpage_scan_link) {
 		timestamp = rm_entry->timestamp;
 		if (jiffies_to_msecs(jiffies) - timestamp > 5000) {
 			pr_alert("timestamp = %u", jiffies_to_msecs(jiffies) - timestamp);
-			struct pageblock *new_pageblock = kmalloc(sizeof(struct pageblock), GFP_NOWAIT);
-			new_pageblock->start_pfn = page_to_pfn(get_page_from_rm((unsigned long)rm_entry->next_node));
-			list_add_tail(&new_pageblock->list, &pageblocks_to_migrate);
-			rm_release_reservation_fast(rm_entry);
-			list_size++;
+
+			next_lock = &rm_entry->lock;
+			if (spin_trylock(next_lock)) {
+				struct pageblock *new_pageblock = kmalloc(sizeof(struct pageblock), GFP_NOWAIT);
+				new_pageblock->start_pfn = page_to_pfn(get_page_from_rm((unsigned long)rm_entry->next_node));
+				list_add_tail(&new_pageblock->list, &pageblocks_to_migrate);
+				rm_release_reservation_fast(rm_entry);
+				list_size++;
+				spin_unlock(next_lock);
+			}
 			if (list_size > 500)
 				break;
+
 		}
 	}
 	spin_unlock(&osa_hpage_list_lock);
@@ -234,14 +251,14 @@ static int __init osa_hugepage_init(void)
 
 	INIT_LIST_HEAD(&osa_hpage_scan_list);
 
-	err = start_stop_osa_hpage_scand();
-	if (err)
-		goto err_sysfs;
+	// err = start_stop_osa_hpage_scand();
+	// if (err)
+	// 	goto err_sysfs;
 
-	/* init sysfs */
-	err = reserve_tracking_init_sysfs();
-	if (err)
-		goto err_sysfs;
+	// /* init sysfs */
+	// err = reserve_tracking_init_sysfs();
+	// if (err)
+	// 	goto err_sysfs;
 
 	return 0;
 

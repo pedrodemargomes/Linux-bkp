@@ -1075,8 +1075,6 @@ static bool suitable_migration_target(struct compact_control *cc,
  */
 static inline bool compact_scanners_met(struct compact_control *cc)
 {
-	pr_alert("pageblock_order = %d", pageblock_order);
-	pr_alert("cc->free_pfn >> pageblock_order) <= (cc->migrate_pfn >> pageblock_order %d", (cc->free_pfn >> pageblock_order) <= (cc->migrate_pfn >> pageblock_order));
 	return (cc->free_pfn >> pageblock_order)
 		<= (cc->migrate_pfn >> pageblock_order);
 }
@@ -1690,7 +1688,6 @@ static enum compact_result compact_zone(struct zone *zone, struct compact_contro
 	if (cc->whole_zone) {
 		cc->migrate_pfn = start_pfn;
 		cc->free_pfn = pageblock_start_pfn(end_pfn - 1);
-		pr_alert("cc->migrate_pfn = %lu cc->free_pfn = %lu", cc->migrate_pfn, cc->free_pfn);
 	} else {
 		cc->migrate_pfn = zone->compact_cached_migrate_pfn[sync];
 		cc->free_pfn = zone->compact_cached_free_pfn;
@@ -1723,7 +1720,6 @@ static enum compact_result compact_zone(struct zone *zone, struct compact_contro
 			ret = COMPACT_CONTENDED;
 			putback_movable_pages(&cc->migratepages);
 			cc->nr_migratepages = 0;
-			pr_alert("ISOLATE_ABORT");
 			goto out;
 		case ISOLATE_NONE:
 			/*
@@ -1731,10 +1727,8 @@ static enum compact_result compact_zone(struct zone *zone, struct compact_contro
 			 * there might still be unflushed migrations from
 			 * previous cc->order aligned block.
 			 */
-			pr_alert("ISOLATE_NONE");
 			goto check_drain;
 		case ISOLATE_SUCCESS:
-			pr_alert("ISOLATE_SUCCESS");
 			;
 		}
 
@@ -1961,7 +1955,9 @@ static void proactive_compact_node(pg_data_t *pgdat)
 
 		cc.zone = zone;
 
+		pr_alert("Compacting zone = %d", zoneid);
 		compact_zone(zone, &cc);
+		pr_alert("- - - - -");
 
 		VM_BUG_ON(!list_empty(&cc.freepages));
 		VM_BUG_ON(!list_empty(&cc.migratepages));
@@ -2265,12 +2261,12 @@ int kcompactd_run(int nid)
 	if (pgdat->kcompactd)
 		return 0;
 
-	pgdat->kcompactd = kthread_run(kcompactd, pgdat, "kcompactd%d", nid);
-	if (IS_ERR(pgdat->kcompactd)) {
-		pr_err("Failed to start kcompactd on node %d\n", nid);
-		ret = PTR_ERR(pgdat->kcompactd);
-		pgdat->kcompactd = NULL;
-	}
+	// pgdat->kcompactd = kthread_run(kcompactd, pgdat, "kcompactd%d", nid);
+	// if (IS_ERR(pgdat->kcompactd)) {
+	// 	pr_err("Failed to start kcompactd on node %d\n", nid);
+	// 	ret = PTR_ERR(pgdat->kcompactd);
+	// 	pgdat->kcompactd = NULL;
+	// }
 	return ret;
 }
 

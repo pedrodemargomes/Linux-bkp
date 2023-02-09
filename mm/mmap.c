@@ -2578,7 +2578,7 @@ static void unmap_region(struct mm_struct *mm,
 
 	lru_add_drain();
 
-	#ifdef DEBUG_RESERV_THP
+	// #ifdef DEBUG_RESERV_THP
 	struct page *page = NULL;
 	struct anon_vma_chain *vmac;
 	struct anon_vma *anon_vma;
@@ -2625,7 +2625,7 @@ static void unmap_region(struct mm_struct *mm,
 			pr_alert("= FIM =");
 		}
 	}
-	#endif
+	// #endif
 
 	tlb_gather_mmu(&tlb, mm, start, end);
 	update_hiwater_rss(mm);

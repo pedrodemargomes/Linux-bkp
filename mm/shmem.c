@@ -605,6 +605,7 @@ static int shmem_add_to_page_cache(struct page *page,
 	VM_BUG_ON_PAGE(!PageSwapBacked(page), page);
 	VM_BUG_ON(expected && PageTransHuge(page));
 
+	pr_alert("shmem_add_to_page_cache page_to_pfn(page) = %ld", page_to_pfn(page));
 	page_ref_add(page, nr);
 	page->mapping = mapping;
 	page->index = index;

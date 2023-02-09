@@ -3391,9 +3391,9 @@ static vm_fault_t do_anonymous_page(struct vm_fault *vmf)
 	// pr_alert("> vma->vm_mm->owner->cred->uid = %ld", vma->vm_mm->owner->cred->uid);
 	if (GET_RM_ROOT(vma) && !uid_eq(vma->vm_mm->owner->cred->uid, GLOBAL_ROOT_UID) ) {
 		page = rm_alloc_from_reservation(vma, vmf->address, &mask);
-		#ifdef DEBUG_RESERV_THP
-		pr_alert("rm page = %ld offset = %ld", page_to_pfn(page), page-get_page_from_rm((unsigned long)rm_entry->next_node) );
-		#endif
+		// #ifdef DEBUG_RESERV_THP
+		pr_alert("rm page = %ld address = %lx", page_to_pfn(page), vmf->address);
+		// #endif
 	} else {
 		page = NULL;
 	}
@@ -3457,77 +3457,6 @@ setpte:
 	update_mmu_cache(vma, vmf->address, vmf->pte);
 unlock:
 	pte_unmap_unlock(vmf->pte, vmf->ptl);
-	
-	if (mask != NULL && bitmap_weight(mask, 512) > 64) {
-		lru_add_drain_all(); // drena os LRUs
-		#ifdef DEBUG_RESERV_THP
-		pr_alert("bitmap_weight > 64");
-		#endif
-		rm_entry = get_rm_entry_from_reservation(vma, vmf->address);
-		unsigned long haddr = vmf->address & RESERV_MASK;
-		struct page *head = get_page_from_rm((unsigned long) rm_entry->next_node);
-		if (PageTransCompound(head)) {
-			#ifdef DEBUG_RESERV_THP
-			pr_alert("PageTransCompound(head) == true return 0");
-			for (i = 0; i < RESERV_NR; i++) {
-				pr_alert("memory.c page = %ld PageActive(page) = %d PageLRU(page) = %d page_count(page) = %d total_mapcount(page) = %d PageTransCompound(page) = %d", page_to_pfn(head+i), PageActive(head+i), PageLRU(head+i), page_count(head+i), total_mapcount(head+i), PageTransCompound(head+i));
-			}
-			#endif
-			return ret; 
-		}
-		#ifdef DEBUG_RESERV_THP
-		pr_alert("rm_alloc INIT promote page page_to_pfn(head) = %ld page_count(head) = %d compound_mapcount(head) = %d total_mapcount(head) = %d PageActive(head) = %d PageTransCompound(head) = %d", page_to_pfn(head), page_count(head), compound_mapcount(head), total_mapcount(head), PageActive(head), PageTransCompound(head));
-
-		struct anon_vma_chain *vmac;
-		struct vm_area_struct *vma;
-		struct anon_vma *anon_vma;
-		for (i = 0; i < RESERV_NR; i++) {
-			anon_vma = page_get_anon_vma(head+i);
-			if (!anon_vma) {
-				pr_alert("rm_alloc anon_vma = NULL page = %ld PageActive(page) = %d PageLRU(page) = %d page_count(page) = %d total_mapcount(page) = %d page->_mapcount = %d compound_mapcount(page) = %d PageTransCompound(page) = %d", page_to_pfn(head+i), PageActive(head+i), PageLRU(head+i), page_count(head+i), total_mapcount(head+i), atomic_read(&(head+i)->_mapcount), compound_mapcount(head+i), PageTransCompound(head+i));
-				continue;
-			}
-			pr_alert("rm_alloc page = %ld PageActive(page) = %d PageLRU(page) = %d page_count(page) = %d total_mapcount(page) = %d page->_mapcount = %d compound_mapcount(page) = %d PageTransCompound(page) = %d", page_to_pfn(head+i), PageActive(head+i), PageLRU(head+i), page_count(head+i), total_mapcount(head+i), atomic_read(&(head+i)->_mapcount), compound_mapcount(head+i), PageTransCompound(head+i));
-			anon_vma_lock_read(anon_vma);
-			anon_vma_interval_tree_foreach(vmac, &anon_vma->rb_root, 0, ULONG_MAX) {
-				vma = vmac->vma;
-				if (vma && vma->vm_mm)
-					pr_alert("vma->vm_mm->owner->pid = %d", vma->vm_mm->owner->pid);
-			}
-			anon_vma_unlock_read(anon_vma);
-		}
-		#endif
-		
-		int retPrmtHugePage = promote_huge_page_address(vma, head, haddr);
-		
-		if (!retPrmtHugePage) {
-			osa_hpage_exit_list(rm_entry);
-			#ifdef DEBUG_RESERV_THP
-			pr_alert("rm_alloc FIM promote page retPrmtHugePage = %d page_to_pfn(head) = %ld page_count(head) = %d compound_mapcount(head) = %d total_mapcount(head) = %d PageActive(head) = %d PageTransCompound(head) = %d", retPrmtHugePage, page_to_pfn(head), page_count(head), compound_mapcount(head), total_mapcount(head), PageActive(head), PageTransCompound(head));
-			
-			struct anon_vma_chain *vmac;
-			struct vm_area_struct *vma;
-			struct anon_vma *anon_vma;
-			for (i = 0; i < RESERV_NR; i++) {
-				anon_vma = page_get_anon_vma(head+i);
-				if (!anon_vma) {
-					pr_alert("rm_alloc anon_vma = NULL page = %ld PageActive(page) = %d PageLRU(page) = %d page_count(page) = %d total_mapcount(page) = %d page->_mapcount = %d compound_mapcount(page) = %d PageTransCompound(page) = %d", page_to_pfn(head+i), PageActive(head+i), PageLRU(head+i), page_count(head+i), total_mapcount(head+i), atomic_read(&(head+i)->_mapcount), compound_mapcount(head+i), PageTransCompound(head+i));
-					continue;
-				}
-				pr_alert("rm_alloc page = %ld PageActive(page) = %d PageLRU(page) = %d page_count(page) = %d total_mapcount(page) = %d page->_mapcount = %d compound_mapcount(page) = %d PageTransCompound(page) = %d", page_to_pfn(head+i), PageActive(head+i), PageLRU(head+i), page_count(head+i), total_mapcount(head+i), atomic_read(&(head+i)->_mapcount), compound_mapcount(head+i), PageTransCompound(head+i));
-				anon_vma_lock_read(anon_vma);
-				anon_vma_interval_tree_foreach(vmac, &anon_vma->rb_root, 0, ULONG_MAX) {
-					vma = vmac->vma;
-					if (vma && vma->vm_mm)
-						pr_alert("vma->vm_mm->owner->pid = %d", vma->vm_mm->owner->pid);
-				}
-				anon_vma_unlock_read(anon_vma);
-			}
-			#endif
-			
-			return 0;
-		}
-	}
 
 	return ret;
 release:
@@ -4395,6 +4324,85 @@ unlock:
 	return 0;
 }
 
+static int hugepage_vma_revalidate(struct mm_struct *mm, unsigned long address,
+		struct vm_area_struct **vmap)
+{
+	struct vm_area_struct *vma;
+	unsigned long hstart, hend;
+
+	*vmap = vma = find_vma(mm, address);
+	if (!vma)
+		return -1;
+
+	hstart = (vma->vm_start + ~HPAGE_PMD_MASK) & HPAGE_PMD_MASK;
+	hend = vma->vm_end & HPAGE_PMD_MASK;
+	if (address < hstart || address + HPAGE_PMD_SIZE > hend)
+		return -1;
+	return 0;
+}
+
+static int bad_address(void *p)
+{
+	unsigned long dummy;
+
+	return probe_kernel_address((unsigned long *)p, dummy);
+}
+
+static void dump_pagetable(unsigned long address)
+{
+	pgd_t *base = __va(read_cr3_pa());
+	pgd_t *pgd = base + pgd_index(address);
+	p4d_t *p4d;
+	pud_t *pud;
+	pmd_t *pmd;
+	pte_t *pte;
+
+	if (bad_address(pgd))
+		goto bad;
+
+	pr_info("PGD %lx ", pgd_val(*pgd));
+
+	if (!pgd_present(*pgd))
+		goto out;
+
+	p4d = p4d_offset(pgd, address);
+	if (bad_address(p4d))
+		goto bad;
+
+	pr_cont("P4D %lx ", p4d_val(*p4d));
+	if (!p4d_present(*p4d) || p4d_large(*p4d))
+		goto out;
+
+	pud = pud_offset(p4d, address);
+	if (bad_address(pud))
+		goto bad;
+
+	pr_cont("PUD %lx ", pud_val(*pud));
+	if (!pud_present(*pud) || pud_large(*pud))
+		goto out;
+
+	pmd = pmd_offset(pud, address);
+	if (bad_address(pmd))
+		goto bad;
+
+	pr_cont("PMD %lx ", pmd_val(*pmd));
+	if (!pmd_present(*pmd) || pmd_large(*pmd))
+		goto out;
+
+	pte = pte_offset_kernel(pmd, address);
+	if (bad_address(pte))
+		goto bad;
+
+	pr_cont("PTE %lx", pte_val(*pte));
+out:
+	pr_cont("\n");
+	return;
+bad:
+	pr_info("BAD\n");
+}
+
+struct page *last_head = NULL;
+
 /*
  * By the time we get here, we already hold the mm semaphore
  *
@@ -4416,6 +4424,7 @@ static vm_fault_t __handle_mm_fault(struct vm_area_struct *vma,
 	pgd_t *pgd;
 	p4d_t *p4d;
 	vm_fault_t ret;
+	int i;
 
 	pgd = pgd_offset(mm, address);
 	p4d = p4d_alloc(mm, pgd, address);
@@ -4482,6 +4491,104 @@ static vm_fault_t __handle_mm_fault(struct vm_area_struct *vma,
 	// 		}
 	// 	}
 	// }
+
+	struct rm_entry *rm_entry = get_rm_entry_from_reservation(vma, vmf.address);
+	if (rm_entry && rm_entry->mask != NULL && bitmap_weight(rm_entry->mask, 512) > 5) {
+		up_read(&mm->mmap_sem);
+		down_write(&mm->mmap_sem);
+		barrier();
+		rm_entry = get_rm_entry_from_reservation(vma, vmf.address);
+		if (!rm_entry || rm_entry->mask == NULL || bitmap_weight(rm_entry->mask, 512) <= 5) {
+			pr_alert("goto out rm_entry");
+			goto out;
+		}
+
+		int result = hugepage_vma_revalidate(mm, vmf.address, &vma);
+		if (result) {
+			// pr_alert("goto out hugepage_vma_revalidate");
+			goto out;
+		}
+
+		lru_add_drain_all(); // drena os LRUs
+		// #ifdef DEBUG_RESERV_THP
+		pr_alert("bitmap_weight > 64");
+		// #endif
+		
+		unsigned long haddr = vmf.address & RESERV_MASK;
+		struct page *head = get_page_from_rm((unsigned long) rm_entry->next_node);
+		if (PageTransCompound(head)) {
+			// #ifdef DEBUG_RESERV_THP
+			pr_alert("PageTransCompound(head) == true return 0");
+			for (i = 0; i < RESERV_NR; i++) {
+				pr_alert("memory.c page = %ld PageActive(page) = %d PageLRU(page) = %d page_count(page) = %d total_mapcount(page) = %d PageTransCompound(page) = %d", page_to_pfn(head+i), PageActive(head+i), PageLRU(head+i), page_count(head+i), total_mapcount(head+i), PageTransCompound(head+i));
+			}
+			// #endif
+			return 0;
+		}
+		pr_alert("rm_alloc INIT promote page haddr = %lx vma->flags = %ld page_to_pfn(head) = %ld page_count(head) = %d compound_mapcount(head) = %d total_mapcount(head) = %d PageActive(head) = %d PageTransCompound(head) = %d", haddr, vma->vm_flags, page_to_pfn(head), page_count(head), compound_mapcount(head), total_mapcount(head), PageActive(head), PageTransCompound(head));
+		// #ifdef DEBUG_RESERV_THP
+
+		struct anon_vma_chain *vmac;
+		struct vm_area_struct *vma;
+		struct anon_vma *anon_vma;
+		for (i = 0; i < RESERV_NR; i++) {
+			anon_vma = page_get_anon_vma(head+i);
+			if (!anon_vma) {
+				pr_alert("rm_alloc anon_vma = NULL page = %ld PageActive(page) = %d PageLRU(page) = %d page_count(page) = %d total_mapcount(page) = %d page->_mapcount = %d compound_mapcount(page) = %d PageTransCompound(page) = %d", page_to_pfn(head+i), PageActive(head+i), PageLRU(head+i), page_count(head+i), total_mapcount(head+i), atomic_read(&(head+i)->_mapcount), compound_mapcount(head+i), PageTransCompound(head+i));
+				continue;
+			}
+			pr_alert("rm_alloc page = %ld PageActive(page) = %d PageLRU(page) = %d page_count(page) = %d total_mapcount(page) = %d page->_mapcount = %d compound_mapcount(page) = %d PageTransCompound(page) = %d", page_to_pfn(head+i), PageActive(head+i), PageLRU(head+i), page_count(head+i), total_mapcount(head+i), atomic_read(&(head+i)->_mapcount), compound_mapcount(head+i), PageTransCompound(head+i));
+			anon_vma_lock_read(anon_vma);
+			anon_vma_interval_tree_foreach(vmac, &anon_vma->rb_root, 0, ULONG_MAX) {
+				vma = vmac->vma;
+				if (vma && vma->vm_mm)
+					pr_alert("vma->vm_mm->owner->pid = %d", vma->vm_mm->owner->pid);
+			}
+			anon_vma_unlock_read(anon_vma);
+		}
+		// #endif
+		
+		int retPrmtHugePage = promote_huge_page_address(vma, head, haddr);
+		
+		if (!retPrmtHugePage) {
+			pr_alert("promotion SUCCESS page_to_pfn(head) = %ld", page_to_pfn(head));
+			dump_pagetable(vmf.address);
+			osa_hpage_exit_list(rm_entry);
+			// #ifdef DEBUG_RESERV_THP
+			pr_alert("rm_alloc FIM promote page retPrmtHugePage = %d page_to_pfn(head) = %ld page_count(head) = %d compound_mapcount(head) = %d total_mapcount(head) = %d PageActive(head) = %d PageTransCompound(head) = %d", retPrmtHugePage, page_to_pfn(head), page_count(head), compound_mapcount(head), total_mapcount(head), PageActive(head), PageTransCompound(head));
+			
+			struct anon_vma_chain *vmac;
+			struct vm_area_struct *vma;
+			struct anon_vma *anon_vma;
+			for (i = 0; i < RESERV_NR; i++) {
+				anon_vma = page_get_anon_vma(head+i);
+				if (!anon_vma) {
+					pr_alert("rm_alloc anon_vma = NULL page = %ld PageActive(page) = %d PageLRU(page) = %d page_count(page) = %d total_mapcount(page) = %d page->_mapcount = %d compound_mapcount(page) = %d PageTransCompound(page) = %d", page_to_pfn(head+i), PageActive(head+i), PageLRU(head+i), page_count(head+i), total_mapcount(head+i), atomic_read(&(head+i)->_mapcount), compound_mapcount(head+i), PageTransCompound(head+i));
+					continue;
+				}
+				pr_alert("rm_alloc page = %ld PageActive(page) = %d PageLRU(page) = %d page_count(page) = %d total_mapcount(page) = %d page->_mapcount = %d compound_mapcount(page) = %d PageTransCompound(page) = %d", page_to_pfn(head+i), PageActive(head+i), PageLRU(head+i), page_count(head+i), total_mapcount(head+i), atomic_read(&(head+i)->_mapcount), compound_mapcount(head+i), PageTransCompound(head+i));
+				anon_vma_lock_read(anon_vma);
+				anon_vma_interval_tree_foreach(vmac, &anon_vma->rb_root, 0, ULONG_MAX) {
+					vma = vmac->vma;
+					if (vma && vma->vm_mm)
+						pr_alert("vma->vm_mm->owner->pid = %d", vma->vm_mm->owner->pid);
+				}
+				anon_vma_unlock_read(anon_vma);
+			}
+			// #endif
+			
+			up_write(&mm->mmap_sem);
+			down_read(&mm->mmap_sem);
+			dump_pagetable(vmf.address);
+			return 0;
+		} else {
+			pr_alert("promotion ERROR page_to_pfn(head) = %ld", page_to_pfn(head));
+		}
+out:
+		up_write(&mm->mmap_sem);
+		down_read(&mm->mmap_sem);
+	}
+
 	ret = handle_pte_fault(&vmf);
 
 	return ret; 

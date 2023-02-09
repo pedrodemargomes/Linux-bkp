@@ -838,6 +838,8 @@ static inline void
 show_signal_msg(struct pt_regs *regs, unsigned long error_code,
 		unsigned long address, struct task_struct *tsk)
 {
+	dump_pagetable(address);
+
 	const char *loglvl = task_pid_nr(tsk) > 1 ? KERN_INFO : KERN_EMERG;
 
 	if (!unhandled_signal(tsk, SIGSEGV))
