@@ -839,6 +839,7 @@ show_signal_msg(struct pt_regs *regs, unsigned long error_code,
 		unsigned long address, struct task_struct *tsk)
 {
 	dump_pagetable(address);
+	pr_alert("current->pid = %d", task_pid_nr(current));
 
 	const char *loglvl = task_pid_nr(tsk) > 1 ? KERN_INFO : KERN_EMERG;
 
@@ -943,6 +944,7 @@ __bad_area(struct pt_regs *regs, unsigned long error_code,
 	 */
 	up_read(&mm->mmap_sem);
 
+	pr_alert("__bad_area");
 	__bad_area_nosemaphore(regs, error_code, address,
 			       (vma) ? &pkey : NULL, si_code);
 }
@@ -1044,9 +1046,10 @@ mm_fault_error(struct pt_regs *regs, unsigned long error_code,
 		if (fault & (VM_FAULT_SIGBUS|VM_FAULT_HWPOISON|
 			     VM_FAULT_HWPOISON_LARGE))
 			do_sigbus(regs, error_code, address, pkey, fault);
-		else if (fault & VM_FAULT_SIGSEGV)
+		else if (fault & VM_FAULT_SIGSEGV) {
+			pr_alert("mm_fault_error");
 			bad_area_nosemaphore(regs, error_code, address, pkey);
-		else
+		} else
 			BUG();
 	}
 }
@@ -1275,6 +1278,7 @@ __do_page_fault(struct pt_regs *regs, unsigned long error_code,
 		 * Don't take the mm semaphore here. If we fixup a prefetch
 		 * fault we could otherwise deadlock:
 		 */
+		pr_alert("bad_area_nosemaphore 1");
 		bad_area_nosemaphore(regs, error_code, address, NULL);
 
 		return;
@@ -1288,6 +1292,7 @@ __do_page_fault(struct pt_regs *regs, unsigned long error_code,
 		pgtable_bad(regs, error_code, address);
 
 	if (unlikely(smap_violation(error_code, regs))) {
+		pr_alert("bad_area_nosemaphore 2");
 		bad_area_nosemaphore(regs, error_code, address, NULL);
 		return;
 	}
@@ -1297,6 +1302,7 @@ __do_page_fault(struct pt_regs *regs, unsigned long error_code,
 	 * in a region with pagefaults disabled then we must not take the fault
 	 */
 	if (unlikely(faulthandler_disabled() || !mm)) {
+		pr_alert("bad_area_nosemaphore 3");
 		bad_area_nosemaphore(regs, error_code, address, NULL);
 		return;
 	}
@@ -1343,6 +1349,7 @@ __do_page_fault(struct pt_regs *regs, unsigned long error_code,
 	if (unlikely(!down_read_trylock(&mm->mmap_sem))) {
 		if (!(error_code & X86_PF_USER) &&
 		    !search_exception_tables(regs->ip)) {
+			pr_alert("bad_area_nosemaphore 4");
 			bad_area_nosemaphore(regs, error_code, address, NULL);
 			return;
 		}
@@ -1359,12 +1366,15 @@ retry:
 
 	vma = find_vma(mm, address);
 	if (unlikely(!vma)) {
+		pr_alert("!vma");
 		bad_area(regs, error_code, address);
 		return;
 	}
 	if (likely(vma->vm_start <= address))
 		goto good_area;
 	if (unlikely(!(vma->vm_flags & VM_GROWSDOWN))) {
+		pr_alert("!(vma->vm_flags & VM_GROWSDOWN))");
+		pr_alert("address = %lx vma->vm_start = %lx", address, vma->vm_start);
 		bad_area(regs, error_code, address);
 		return;
 	}
@@ -1376,11 +1386,13 @@ retry:
 		 * 32 pointers and then decrements %sp by 65535.)
 		 */
 		if (unlikely(address + 65536 + 32 * sizeof(unsigned long) < regs->sp)) {
+			pr_alert("address + 65536 + 32 * sizeof(unsigned long) < regs->sp");
 			bad_area(regs, error_code, address);
 			return;
 		}
 	}
 	if (unlikely(expand_stack(vma, address))) {
+		pr_alert("expand_stack");
 		bad_area(regs, error_code, address);
 		return;
 	}
@@ -1439,6 +1451,7 @@ good_area:
 
 	up_read(&mm->mmap_sem);
 	if (unlikely(fault & VM_FAULT_ERROR)) {
+		pr_alert("mm_fault_error");
 		mm_fault_error(regs, error_code, address, &pkey, fault);
 		return;
 	}

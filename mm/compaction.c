@@ -2261,12 +2261,12 @@ int kcompactd_run(int nid)
 	if (pgdat->kcompactd)
 		return 0;
 
-	// pgdat->kcompactd = kthread_run(kcompactd, pgdat, "kcompactd%d", nid);
-	// if (IS_ERR(pgdat->kcompactd)) {
-	// 	pr_err("Failed to start kcompactd on node %d\n", nid);
-	// 	ret = PTR_ERR(pgdat->kcompactd);
-	// 	pgdat->kcompactd = NULL;
-	// }
+	pgdat->kcompactd = kthread_run(kcompactd, pgdat, "kcompactd%d", nid);
+	if (IS_ERR(pgdat->kcompactd)) {
+		pr_err("Failed to start kcompactd on node %d\n", nid);
+		ret = PTR_ERR(pgdat->kcompactd);
+		pgdat->kcompactd = NULL;
+	}
 	return ret;
 }
 
@@ -2320,8 +2320,8 @@ static int __init kcompactd_init(void)
 		return ret;
 	}
 
-	for_each_node_state(nid, N_MEMORY)
-		kcompactd_run(nid);
+	// for_each_node_state(nid, N_MEMORY)
+	// 	kcompactd_run(nid);
 	return 0;
 }
 subsys_initcall(kcompactd_init)

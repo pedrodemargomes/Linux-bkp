@@ -91,11 +91,11 @@ extern void rm_release_reservation(struct vm_area_struct *vma, unsigned long add
     if (unused) {
       mod_node_page_state(page_pgdat(page), NR_MEM_RESERVATIONS_RESERVED, -unused);
     }
-    // #ifdef DEBUG_RESERV_THP
-    pr_alert("rm_release PageTransCompound(page) = %d page_to_pfn(page) = %ld page_count(page) = %d total_mapcount(page) = %d", PageTransCompound(page), page_to_pfn(page), page_count(page), total_mapcount(page));
-    // #endif
+    #ifdef DEBUG_RESERV_THP
+    pr_alert("rm_release PageTransCompound(page) = %d address = %lx page_to_pfn(page) = %ld page_count(page) = %d total_mapcount(page) = %d", PageTransCompound(page), address, page_to_pfn(page), page_count(page), total_mapcount(page));
+    #endif
     if (PageTransCompound(page)) {
-      // #ifdef DEBUG_RESERV_THP
+      #ifdef DEBUG_RESERV_THP
       struct anon_vma_chain *vmac;
       struct vm_area_struct *vma;
       struct anon_vma *anon_vma;
@@ -119,7 +119,7 @@ extern void rm_release_reservation(struct vm_area_struct *vma, unsigned long add
         anon_vma_unlock_read(anon_vma);
       }
       pr_alert("put_page");
-      // #endif
+      #endif
       put_page(page);
       #ifdef DEBUG_RESERV_THP
       for (i = 0; i < RESERV_NR; i++) {
@@ -173,9 +173,9 @@ extern void rm_release_reservation_fast(struct rm_entry *rm_entry) {
     if (unused) {
       mod_node_page_state(page_pgdat(page), NR_MEM_RESERVATIONS_RESERVED, -unused);
     }
-    // #ifdef DEBUG_RESERV_THP
+    #ifdef DEBUG_RESERV_THP
     pr_alert("rm_release PageTransCompound(page) = %d page_to_pfn(page) = %ld PageLRU(page) = %d page_count(page) = %d total_mapcount(page) = %d page_zonenum(page) = %d", PageTransCompound(page), page_to_pfn(page), PageLRU(page), page_count(page), total_mapcount(page), page_zonenum(page));
-    // #endif
+    #endif
     if (PageTransCompound(page)) {
       #ifdef DEBUG_RESERV_THP
       struct anon_vma_chain *vmac;
@@ -371,7 +371,7 @@ struct page *rm_alloc_from_reservation(struct vm_area_struct *vma, unsigned long
   unsigned long leaf_value;
   unsigned long *mask;
 
-  struct page *page, *head;
+  struct page *head, *page;
   spinlock_t  *next_lock;
 
   gfp_t gfp           = ((GFP_HIGHUSER_MOVABLE | __GFP_NOMEMALLOC | __GFP_NOWARN) & ~__GFP_RECLAIM);
@@ -415,15 +415,20 @@ struct page *rm_alloc_from_reservation(struct vm_area_struct *vma, unsigned long
   mask = (unsigned long *)(cur_node->items[index].mask);
   head = page = get_page_from_rm(leaf_value);
   if (leaf_value == 0) { //create a new reservation if not present
+    if (region_offset != 0) {
+      page = NULL;
+      goto out_unlock;
+    }
     // allocate pages 
     page = alloc_pages_vma(gfp, RESERV_ORDER, vma, haddr, numa_node_id(), false);
     if (!page) {
-      pr_alert("alloc_pages_vma FAILED");
+      // pr_alert("alloc_pages_vma FAILED");
       goto out_unlock;
     }
     for (i = 0; i < RESERV_NR; i++) {
       set_page_count(page + i, 1);
     }
+    // clear_huge_page(page, haddr, HPAGE_PMD_NR);
     // create a leaf node
     leaf_value = create_value(page);
     bitmap_zero(mask, 512);
@@ -491,9 +496,9 @@ void rm_destroy(struct rm_node *node, unsigned char level) { //not thread-safe
         if (unused) {
           mod_node_page_state(page_pgdat(page), NR_MEM_RESERVATIONS_RESERVED, -unused);
         }
-        // #ifdef DEBUG_RESERV_THP
+        #ifdef DEBUG_RESERV_THP
         pr_alert("rm_destroy PageTransCompound(page) = %d page_to_pfn(page) = %ld page_count(page) = %d total_mapcount(page) = %d", PageTransCompound(page), page_to_pfn(page), page_count(page), total_mapcount(page));
-        // #endif
+        #endif
         if (PageTransCompound(page)) {
           #ifdef DEBUG_RESERV_THP
           struct anon_vma_chain *vmac;

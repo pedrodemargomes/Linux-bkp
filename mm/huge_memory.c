@@ -1769,6 +1769,7 @@ static inline void zap_deposited_table(struct mm_struct *mm, pmd_t *pmd)
 int zap_huge_pmd(struct mmu_gather *tlb, struct vm_area_struct *vma,
 		 pmd_t *pmd, unsigned long addr)
 {
+	// pr_alert("zap_huge_pmd addr = %lx", addr);
 	pmd_t orig_pmd;
 	spinlock_t *ptl;
 
@@ -1799,10 +1800,10 @@ int zap_huge_pmd(struct mmu_gather *tlb, struct vm_area_struct *vma,
 	} else {
 		struct page *page = NULL;
 		int flush_needed = 1;
-		pr_alert("zap_huge_pmd else");
+		// pr_alert("zap_huge_pmd else");
 		if (pmd_present(orig_pmd)) {
 			page = pmd_page(orig_pmd);
-			pr_alert("zap_huge_pmd else page_to_pfn(page) = %ld", page_to_pfn(page));
+			// pr_alert("zap_huge_pmd else addr = %lx page_to_pfn(page) = %ld", addr, page_to_pfn(page));
 			page_remove_rmap(page, true);
 			VM_BUG_ON_PAGE(page_mapcount(page) < 0, page);
 			VM_BUG_ON_PAGE(!PageHead(page), page);
@@ -2234,7 +2235,7 @@ static void __split_huge_pmd_locked(struct vm_area_struct *vma, pmd_t *pmd,
 		soft_dirty = pmd_soft_dirty(old_pmd);
 	}
 	VM_BUG_ON_PAGE(!page_count(page), page);
-	pr_alert("__split_huge_pmd_locked page_to_pfn(page) = %ld", page_to_pfn(page));
+	// pr_alert("__split_huge_pmd_locked page_to_pfn(page) = %ld", page_to_pfn(page));
 	page_ref_add(page, HPAGE_PMD_NR - 1);
 
 	/*
@@ -2570,7 +2571,7 @@ static void __split_huge_page(struct page *page, struct list_head *list,
 
 	split_page_owner(head, HPAGE_PMD_ORDER);
 
-	pr_alert("__split_huge_page");
+	// pr_alert("__split_huge_page");
 	/* See comment in __split_huge_page_tail() */
 	if (PageAnon(head)) {
 		/* Additional pin to radix tree of swap cache */
@@ -2711,9 +2712,9 @@ int promote_huge_pmd_address(struct vm_area_struct *vma, unsigned long haddr, st
 
 	pmd = mm_find_pmd(mm, haddr);
 	if (!pmd || pmd_trans_huge(*pmd)) {
-		// #ifdef DEBUG_RESERV_THP
+		#ifdef DEBUG_RESERV_THP
 		pr_alert("!pmd || pmd_trans_huge(*pmd)");
-		// #endif
+		#endif
 		goto out_unlock;
 	}
 
@@ -2725,9 +2726,9 @@ int promote_huge_pmd_address(struct vm_area_struct *vma, unsigned long haddr, st
 	page = head;
 	// head = page = vm_normal_page(vma, haddr, *pte);
 	if (!page || !PageTransCompound(page)) {
-		// #ifdef DEBUG_RESERV_THP
+		#ifdef DEBUG_RESERV_THP
 		pr_alert("!page || !PageTransCompound(page) page = %ld PageTransCompound(page) = %d", page_to_pfn(page), PageTransCompound(page));
-		// #endif
+		#endif
 		goto out_unlock;
 	}
 
@@ -2758,9 +2759,9 @@ int promote_huge_pmd_address(struct vm_area_struct *vma, unsigned long haddr, st
 	for (_pte = pte, page = head; _pte < pte + HPAGE_PMD_NR; _pte++, page++) {
 		pte_t pteval = *_pte;
 		if (!pte_none(pteval) && !is_zero_pfn(pte_pfn(pteval)) && ( (page_to_pfn(head) > page_to_pfn(pte_page(pteval))) || (page_to_pfn(pte_page(pteval)) >= page_to_pfn(head)+512) ) ) {
-			// #ifdef DEBUG_RESERV_THP
+			#ifdef DEBUG_RESERV_THP
 			pr_alert("pte checking locked ERROR head = %ld page = %ld page_to_pfn(pte_page(pteval)) = %ld", page_to_pfn(head), page_to_pfn(page), page_to_pfn(pte_page(pteval)));
-			// #endif
+			#endif
 			
 		}
 	}
@@ -2774,7 +2775,7 @@ int promote_huge_pmd_address(struct vm_area_struct *vma, unsigned long haddr, st
 
 	_pmd = pmdp_collapse_flush(vma, haddr, pmd);
 	// spin_unlock(pmd_ptl);
-	mmu_notifier_invalidate_range_end(mm, mmun_start, mmun_end);
+	
 
 	/* remove ptes */
 	for (_pte = pte, page = head; _pte < pte + HPAGE_PMD_NR;
@@ -2790,11 +2791,12 @@ int promote_huge_pmd_address(struct vm_area_struct *vma, unsigned long haddr, st
 			#ifdef DEBUG_RESERV_THP
 			pr_alert("pte none or zero pfn during pmd promotion\n");
 			#endif
+			clear_user_highpage(page, address);
 			add_mm_counter(vma->vm_mm, MM_ANONPAGES, 1);
 			if (is_zero_pfn(pte_pfn(pteval))) {
-				// #ifdef DEBUG_RESERV_THP
+				#ifdef DEBUG_RESERV_THP
 				pr_alert("is_zero_pfn");
-				// #endif
+				#endif
 				/*
 				 * ptl mostly unnecessary.
 				 */
@@ -2869,6 +2871,7 @@ int promote_huge_pmd_address(struct vm_area_struct *vma, unsigned long haddr, st
 	set_pmd_at(mm, haddr, pmd, _pmd);
 	update_mmu_cache_pmd(vma, haddr, pmd);
 	spin_unlock(pmd_ptl);
+	mmu_notifier_invalidate_range_end(mm, mmun_start, mmun_end);
 	unlock_page(head);
 	ret = 0;
 
@@ -2891,7 +2894,7 @@ int promote_huge_page_address(struct vm_area_struct *vma, struct page *head, uns
 
 	pmd_t *pmd = mm_find_pmd(vma->vm_mm, haddr);
 	if (!pmd || pmd_trans_huge(*pmd)) {
-		pr_alert("!pmd || pmd_trans_huge(*pmd)");
+		// pr_alert("!pmd || pmd_trans_huge(*pmd)");
 		return -EINVAL;
 	}
 	pte_t *pte = pte_offset_map(pmd, haddr);
@@ -2900,9 +2903,9 @@ int promote_huge_page_address(struct vm_area_struct *vma, struct page *head, uns
 	for (_pte = pte, page = head; _pte < pte + HPAGE_PMD_NR; _pte++, page++) {
 		pte_t pteval = *_pte;
 		if (!pte_none(pteval) && !is_zero_pfn(pte_pfn(pteval)) && ( (page_to_pfn(head) > page_to_pfn(pte_page(pteval))) || (page_to_pfn(pte_page(pteval)) >= page_to_pfn(head)+512) ) ) {
-			// #ifdef DEBUG_RESERV_THP
+			#ifdef DEBUG_RESERV_THP
 			pr_alert("pte checking ERROR head = %ld page = %ld page_to_pfn(pte_page(pteval)) = %ld", page_to_pfn(head), page_to_pfn(page), page_to_pfn(pte_page(pteval)));
-			// #endif
+			#endif
 			return -EINVAL;
 		}
 	}

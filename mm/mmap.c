@@ -2305,6 +2305,7 @@ static int acct_stack_growth(struct vm_area_struct *vma,
  */
 int expand_upwards(struct vm_area_struct *vma, unsigned long address)
 {
+	// pr_alert("expand_upwards address = %lx", address);
 	struct mm_struct *mm = vma->vm_mm;
 	struct vm_area_struct *next;
 	unsigned long gap_addr;
@@ -2397,6 +2398,7 @@ int expand_upwards(struct vm_area_struct *vma, unsigned long address)
 int expand_downwards(struct vm_area_struct *vma,
 				   unsigned long address)
 {
+	// pr_alert("expand_downwards address = %lx", address);
 	struct mm_struct *mm = vma->vm_mm;
 	struct vm_area_struct *prev;
 	int error = 0;
@@ -2576,9 +2578,11 @@ static void unmap_region(struct mm_struct *mm,
 	struct vm_area_struct *next = prev ? prev->vm_next : mm->mmap;
 	struct mmu_gather tlb;
 
+	// pr_alert("unmap_region start = %lx end = %lx", start, end);
+
 	lru_add_drain();
 
-	// #ifdef DEBUG_RESERV_THP
+	#ifdef DEBUG_RESERV_THP
 	struct page *page = NULL;
 	struct anon_vma_chain *vmac;
 	struct anon_vma *anon_vma;
@@ -2625,7 +2629,7 @@ static void unmap_region(struct mm_struct *mm,
 			pr_alert("= FIM =");
 		}
 	}
-	// #endif
+	#endif
 
 	tlb_gather_mmu(&tlb, mm, start, end);
 	update_hiwater_rss(mm);
@@ -2778,6 +2782,8 @@ int do_munmap(struct mm_struct *mm, unsigned long start, size_t len,
 	end = start + len;
 	if (vma->vm_start >= end)
 		return 0;
+
+	// pr_alert("do_munmap start = %lx end = %lx", start, end);
 
 	// it_addr = start;
 	// for (; it_addr < end; it_addr += PAGE_SIZE) {

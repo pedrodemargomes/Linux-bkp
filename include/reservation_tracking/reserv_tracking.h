@@ -13,6 +13,8 @@ struct pageblock {
 
 extern wait_queue_head_t osa_hpage_scand_wait;
 
+extern spinlock_t osa_hpage_list_lock;
+
 void osa_hpage_enter_list(struct rm_entry *rm_entry);
 void osa_hpage_exit_list(struct rm_entry *rm_entry);
 

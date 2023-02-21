@@ -138,9 +138,7 @@ void osa_hpage_do_scan(void)
 
 	pr_alert("osa_hpage_do_scan");
 
-	struct list_head pageblocks_to_migrate;
 	int list_size = 0;
-	INIT_LIST_HEAD(&pageblocks_to_migrate);
 
 	// PROBLEMA
 	/*
@@ -161,9 +159,6 @@ void osa_hpage_do_scan(void)
 
 			next_lock = &rm_entry->lock;
 			if (spin_trylock(next_lock)) {
-				struct pageblock *new_pageblock = kmalloc(sizeof(struct pageblock), GFP_NOWAIT);
-				new_pageblock->start_pfn = page_to_pfn(get_page_from_rm((unsigned long)rm_entry->next_node));
-				list_add_tail(&new_pageblock->list, &pageblocks_to_migrate);
 				rm_release_reservation_fast(rm_entry);
 				list_size++;
 				spin_unlock(next_lock);
@@ -174,9 +169,6 @@ void osa_hpage_do_scan(void)
 		}
 	}
 	spin_unlock(&osa_hpage_list_lock);
-
-	// if (!list_empty(&pageblocks_to_migrate))
-	// 	compact_reservation(&pageblocks_to_migrate);
 
 	return;
 }

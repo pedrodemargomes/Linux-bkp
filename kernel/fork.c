@@ -588,6 +588,7 @@ static inline int mm_alloc_pgd(struct mm_struct *mm)
 
 static inline void mm_free_pgd(struct mm_struct *mm)
 {
+	// pr_alert("mm_free_pgd current->pid = %d", current->pid);
 	pgd_free(mm, mm->pgd);
 }
 #else
@@ -636,7 +637,7 @@ void __mmdrop(struct mm_struct *mm)
 	BUG_ON(mm == &init_mm);
 	WARN_ON_ONCE(mm == current->mm);
 	WARN_ON_ONCE(mm == current->active_mm);
-	pr_alert("__mmdrop %d", current->pid);
+	// pr_alert("__mmdrop %d", current->pid);
 	mm_free_pgd(mm);
 	destroy_context(mm);
 	hmm_mm_destroy(mm);
