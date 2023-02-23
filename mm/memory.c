@@ -3420,7 +3420,8 @@ static vm_fault_t do_anonymous_page(struct vm_fault *vmf)
 	}
 	if (!page) {
 		struct zone *zones = NODE_DATA(numa_node_id())->node_zones;
-		if (zone_page_state(&zones[ZONE_NORMAL], NR_FREE_PAGES) < 3000) {
+		// pr_alert("zone_page_state(&zones[ZONE_NORMAL], NR_FREE_PAGES) = %ld", zone_page_state(&zones[ZONE_NORMAL], NR_FREE_PAGES));
+		if ( zone_page_state(&zones[ZONE_NORMAL], NR_FREE_PAGES) < low_wmark_pages((&zones[ZONE_NORMAL])) ) {
 			pr_alert("zone free pages = %ld", zone_page_state(&zones[ZONE_NORMAL], NR_FREE_PAGES));
 			spin_lock(&osa_hpage_list_lock);
 			list_for_each_entry_safe(rm_entry, aux, &osa_hpage_scan_list, osa_hpage_scan_link) {
@@ -3436,6 +3437,7 @@ static vm_fault_t do_anonymous_page(struct vm_fault *vmf)
 		}
 
 		page = alloc_zeroed_user_highpage_movable(vma, vmf->address);
+		// pr_alert("page zone name = %s", page_zone(page)->name);
 	}
 
 	if (!page)

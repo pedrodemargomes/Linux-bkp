@@ -4254,6 +4254,12 @@ retry:
 		goto retry_cpuset;
 
 	/* Reclaim has failed us, start killing things */
+	pr_alert("order = %d", order);
+	struct zone *zones = NODE_DATA(numa_node_id())->node_zones;
+	pr_alert("zone_page_state(&zones[ZONE_NORMAL], NR_FREE_PAGES) = %ld", zone_page_state(&zones[ZONE_NORMAL], NR_FREE_PAGES));
+	pr_alert("zone_page_state(&zones[ZONE_DMA], NR_FREE_PAGES) = %ld", zone_page_state(&zones[ZONE_DMA], NR_FREE_PAGES));
+	pr_alert("zone_page_state(&zones[ZONE_DMA32], NR_FREE_PAGES) = %ld", zone_page_state(&zones[ZONE_DMA32], NR_FREE_PAGES));
+
 	page = __alloc_pages_may_oom(gfp_mask, order, ac, &did_some_progress);
 	if (page)
 		goto got_pg;
