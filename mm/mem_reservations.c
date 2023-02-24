@@ -120,6 +120,7 @@ extern void rm_release_reservation(struct vm_area_struct *vma, unsigned long add
       }
       pr_alert("put_page");
       #endif
+      split_huge_page(page);
       put_page(page);
       #ifdef DEBUG_RESERV_THP
       for (i = 0; i < RESERV_NR; i++) {
@@ -147,6 +148,7 @@ extern void rm_release_reservation(struct vm_area_struct *vma, unsigned long add
         put_page(page+i);
       }
     }
+    // pr_alert("osa_hpage_exit_list release");
     osa_hpage_exit_list(&cur_node->items[index]);
     cur_node->items[index].next_node = 0; 
   }
@@ -437,6 +439,7 @@ struct page *rm_alloc_from_reservation(struct vm_area_struct *vma, unsigned long
     count_vm_event(MEM_RESERVATIONS_ALLOC);
     INIT_LIST_HEAD(&cur_node->items[index].osa_hpage_scan_link);
     cur_node->items[index].timestamp = jiffies_to_msecs(jiffies);
+    // pr_alert("osa_hpage_enter_list");
     osa_hpage_enter_list(&cur_node->items[index]);
     // wake_up_interruptible(&osa_hpage_scand_wait);
   } else {
@@ -489,6 +492,7 @@ void rm_destroy(struct rm_node *node, unsigned char level) { //not thread-safe
         next_lock = &cur_node->items[index].lock;
         spin_lock(next_lock);
         VM_BUG_ON(!(unsigned long)(cur_node->items[index].next_node));
+        // pr_alert("osa_hpage_exit_list destroy");
         osa_hpage_exit_list(&cur_node->items[index]);
         page = get_page_from_rm(leaf_value);
 

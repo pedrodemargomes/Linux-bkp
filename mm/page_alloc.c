@@ -4087,6 +4087,9 @@ __alloc_pages_slowpath(gfp_t gfp_mask, unsigned int order,
 	int no_progress_loops;
 	unsigned int cpuset_mems_cookie;
 	int reserve_flags;
+	spinlock_t *next_lock;
+	struct rm_entry *rm_entry = NULL;
+	struct rm_entry *aux;
 
 	/*
 	 * We also sanity check to catch abuse of atomic reserves being used by
@@ -4259,6 +4262,17 @@ retry:
 	pr_alert("zone_page_state(&zones[ZONE_NORMAL], NR_FREE_PAGES) = %ld", zone_page_state(&zones[ZONE_NORMAL], NR_FREE_PAGES));
 	pr_alert("zone_page_state(&zones[ZONE_DMA], NR_FREE_PAGES) = %ld", zone_page_state(&zones[ZONE_DMA], NR_FREE_PAGES));
 	pr_alert("zone_page_state(&zones[ZONE_DMA32], NR_FREE_PAGES) = %ld", zone_page_state(&zones[ZONE_DMA32], NR_FREE_PAGES));
+	// pr_alert("zone_page_state(&zones[ZONE_NORMAL], NR_FREE_PAGES) = %ld", zone_page_state(&zones[ZONE_NORMAL], NR_FREE_PAGES));
+	// pr_alert("zone free pages = %ld", zone_page_state(&zones[ZONE_NORMAL], NR_FREE_PAGES));
+	spin_lock(&osa_hpage_list_lock);
+	list_for_each_entry_safe(rm_entry, aux, &osa_hpage_scan_list, osa_hpage_scan_link) {
+		next_lock = &rm_entry->lock;
+		spin_lock(next_lock);
+		pr_alert("rm_release_reservation_fast");
+		rm_release_reservation_fast(rm_entry);
+		spin_unlock(next_lock);
+	}
+	spin_unlock(&osa_hpage_list_lock);
 
 	page = __alloc_pages_may_oom(gfp_mask, order, ac, &did_some_progress);
 	if (page)

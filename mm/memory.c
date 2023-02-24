@@ -1327,7 +1327,7 @@ static unsigned long zap_pte_range(struct mmu_gather *tlb,
 				unsigned long addr, unsigned long end,
 				struct zap_details *details)
 {
-	// pr_alert("zap_pte_range start = %lx end = %lx", addr, end);
+	pr_alert("zap_pte_range start = %lx end = %lx", addr, end);
 	struct mm_struct *mm = tlb->mm;
 	int force_flush = 0;
 	int rss[NR_MM_COUNTERS];
@@ -1345,14 +1345,16 @@ again:
 	arch_enter_lazy_mmu_mode();
 	do {
 		pte_t ptent = *pte;
-		if (pte_none(ptent))
+		if (pte_none(ptent)) {
+			pr_alert("pte_none");
 			continue;
+		}
 
 		if (pte_present(ptent)) {
 			struct page *page;
 
 			page = _vm_normal_page(vma, addr, ptent, true);
-			// pr_alert("page = %ld", page_to_pfn(page));
+			pr_alert("page = %ld PageTransCompound(page) = %d", page_to_pfn(page), PageTransCompound(page));
 			if (unlikely(details) && page) {
 				/*
 				 * unmap_shared_mapping_pages() wants to
@@ -1466,7 +1468,7 @@ static inline unsigned long zap_pmd_range(struct mmu_gather *tlb,
 				unsigned long addr, unsigned long end,
 				struct zap_details *details)
 {
-	// pr_alert("zap_pmd_range addr = %lx end = %lx", addr, end);
+	pr_alert("zap_pmd_range addr = %lx end = %lx", addr, end);
 	pmd_t *pmd;
 	unsigned long next;
 
@@ -1474,17 +1476,21 @@ static inline unsigned long zap_pmd_range(struct mmu_gather *tlb,
 	do {
 		next = pmd_addr_end(addr, end);
 		if (is_swap_pmd(*pmd) || pmd_trans_huge(*pmd) || pmd_devmap(*pmd)) {
-			// pr_alert("pmd_trans_huge");
+			pr_alert("pmd_trans_huge");
 			if (next - addr != HPAGE_PMD_SIZE) {
-				// pr_alert("__split_huge_pmd addr = %lx", addr);
+				pr_alert("__split_huge_pmd addr = %lx", addr);
 				rm_release_reservation(vma, addr);
 				__split_huge_pmd(vma, pmd, addr, false, NULL);
-			} else if (zap_huge_pmd(tlb, vma, pmd, addr))
+			} else if (zap_huge_pmd(tlb, vma, pmd, addr)) {
+				pr_alert("next");
 				goto next;
+			}
 			/* fall through */
+			pr_alert("fall through");
 		} else if (details && details->single_page &&
 			   PageTransCompound(details->single_page) &&
 			   next - addr == HPAGE_PMD_SIZE && pmd_none(*pmd)) {
+			pr_alert("details");
 			spinlock_t *ptl = pmd_lock(tlb->mm, pmd);
 			/*
 			 * Take and drop THP pmd lock so that we cannot return
@@ -1516,7 +1522,7 @@ static inline unsigned long zap_pud_range(struct mmu_gather *tlb,
 				unsigned long addr, unsigned long end,
 				struct zap_details *details)
 {
-	// pr_alert("zap_pud_range addr = %lx end = %lx", addr, end);
+	pr_alert("zap_pud_range addr = %lx end = %lx", addr, end);
 	pud_t *pud;
 	unsigned long next;
 
@@ -1546,7 +1552,7 @@ static inline unsigned long zap_p4d_range(struct mmu_gather *tlb,
 				unsigned long addr, unsigned long end,
 				struct zap_details *details)
 {
-	// pr_alert("zap_p4d_range addr = %lx end = %lx", addr, end);
+	pr_alert("zap_p4d_range addr = %lx end = %lx", addr, end);
 	p4d_t *p4d;
 	unsigned long next;
 
@@ -1566,7 +1572,7 @@ void unmap_page_range(struct mmu_gather *tlb,
 			     unsigned long addr, unsigned long end,
 			     struct zap_details *details)
 {
-	// pr_alert("unmap_page_range addr = %lx end = %lx", addr, end);
+	pr_alert("unmap_page_range addr = %lx end = %lx", addr, end);
 	pgd_t *pgd;
 	unsigned long next;
 
@@ -3347,11 +3353,8 @@ static vm_fault_t do_anonymous_page(struct vm_fault *vmf)
 	struct page *page;
 	vm_fault_t ret = 0;
 	pte_t entry;
-	struct rm_entry *rm_entry = NULL;
-	struct rm_entry *aux;
 	unsigned long *mask = NULL;
 	int i;
-	spinlock_t *next_lock;
 
 	/* File mapping without ->vm_ops ? */
 	if (vma->vm_flags & VM_SHARED)
@@ -3407,7 +3410,7 @@ static vm_fault_t do_anonymous_page(struct vm_fault *vmf)
 		goto oom;
 	}
 	// pr_alert("> vma->vm_mm->owner->cred->uid = %ld", vma->vm_mm->owner->cred->uid);
-	if (GET_RM_ROOT(vma) && !uid_eq(vma->vm_mm->owner->cred->uid, GLOBAL_ROOT_UID) ) {
+	if (GET_RM_ROOT(vma) /*&& !uid_eq(vma->vm_mm->owner->cred->uid, GLOBAL_ROOT_UID)*/ ) {
 		page = rm_alloc_from_reservation(vma, vmf->address, &mask);
 		#ifdef DEBUG_RESERV_THP
 		pr_alert("rm page = %ld address = %lx", page_to_pfn(page), vmf->address);
@@ -3419,23 +3422,6 @@ static vm_fault_t do_anonymous_page(struct vm_fault *vmf)
 		count_vm_event(MEM_RESERVATIONS_ALLOC_FAILED);
 	}
 	if (!page) {
-		struct zone *zones = NODE_DATA(numa_node_id())->node_zones;
-		// pr_alert("zone_page_state(&zones[ZONE_NORMAL], NR_FREE_PAGES) = %ld", zone_page_state(&zones[ZONE_NORMAL], NR_FREE_PAGES));
-		if ( zone_page_state(&zones[ZONE_NORMAL], NR_FREE_PAGES) < low_wmark_pages((&zones[ZONE_NORMAL])) ) {
-			pr_alert("zone free pages = %ld", zone_page_state(&zones[ZONE_NORMAL], NR_FREE_PAGES));
-			spin_lock(&osa_hpage_list_lock);
-			list_for_each_entry_safe(rm_entry, aux, &osa_hpage_scan_list, osa_hpage_scan_link) {
-				next_lock = &rm_entry->lock;
-				if (spin_trylock(next_lock)) {
-					pr_alert("rm_release_reservation_fast");
-					rm_release_reservation_fast(rm_entry);
-					spin_unlock(next_lock);
-					break;
-				}
-			}
-			spin_unlock(&osa_hpage_list_lock);
-		}
-
 		page = alloc_zeroed_user_highpage_movable(vma, vmf->address);
 		// pr_alert("page zone name = %s", page_zone(page)->name);
 	}
@@ -4461,6 +4447,9 @@ static vm_fault_t __handle_mm_fault(struct vm_area_struct *vma,
 	p4d_t *p4d;
 	vm_fault_t ret;
 	int i;
+	spinlock_t *next_lock;
+	struct rm_entry *rm_entry = NULL;
+	struct rm_entry *aux;
 
 	pgd = pgd_offset(mm, address);
 	p4d = p4d_alloc(mm, pgd, address);
@@ -4530,7 +4519,7 @@ static vm_fault_t __handle_mm_fault(struct vm_area_struct *vma,
 	// 	}
 	// }
 
-	struct rm_entry *rm_entry = get_rm_entry_from_reservation(vma, vmf.address);
+	rm_entry = get_rm_entry_from_reservation(vma, vmf.address);
 	if (rm_entry && rm_entry->mask != NULL && bitmap_weight(rm_entry->mask, 512) > 64) {
 		// pr_alert("try promote haddr = %lx", vmf.address & RESERV_MASK);
 		up_read(&mm->mmap_sem);
@@ -4599,6 +4588,7 @@ static vm_fault_t __handle_mm_fault(struct vm_area_struct *vma,
 			// pr_alert("promotion SUCCESS page_to_pfn(head) = %ld", page_to_pfn(head));
 			// dump_pagetable(vmf.address);
 			osa_hpage_exit_list(rm_entry);
+			// pr_alert("osa_hpage_exit_list promote");
 			#ifdef DEBUG_RESERV_THP
 			pr_alert("rm_alloc FIM promote page retPrmtHugePage = %d page_to_pfn(head) = %ld page_count(head) = %d compound_mapcount(head) = %d total_mapcount(head) = %d PageActive(head) = %d PageTransCompound(head) = %d", retPrmtHugePage, page_to_pfn(head), page_count(head), compound_mapcount(head), total_mapcount(head), PageActive(head), PageTransCompound(head));
 			
