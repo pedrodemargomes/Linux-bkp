@@ -1395,7 +1395,7 @@ static bool should_proactive_compact_node(pg_data_t *pgdat)
 	if (!sysctl_compaction_proactiveness || kswapd_is_running(pgdat))
 		return false;
 
-	pr_alert("fragmentation_score_node = %d fragmentation_score_wmark = %d", fragmentation_score_node(pgdat), fragmentation_score_wmark(pgdat, false));
+	// pr_alert("fragmentation_score_node = %d fragmentation_score_wmark = %d", fragmentation_score_node(pgdat), fragmentation_score_wmark(pgdat, false));
 	wmark_high = fragmentation_score_wmark(pgdat, false);
 	return fragmentation_score_node(pgdat) > wmark_high;
 }
@@ -1441,7 +1441,7 @@ static enum compact_result __compact_finished(struct zone *zone,
 		score = fragmentation_score_zone(cc->zone);
 		wmark_low = fragmentation_score_wmark(pgdat, true);
 
-		pr_alert("score = %d > wmark_low = %d %d", score, wmark_low, score > wmark_low);
+		// pr_alert("score = %d > wmark_low = %d %d", score, wmark_low, score > wmark_low);
 		if (score > wmark_low)
 			return COMPACT_CONTINUE;
 		else
@@ -1955,9 +1955,9 @@ static void proactive_compact_node(pg_data_t *pgdat)
 
 		cc.zone = zone;
 
-		pr_alert("Compacting zone = %d", zoneid);
+		// pr_alert("Compacting zone = %d", zoneid);
 		compact_zone(zone, &cc);
-		pr_alert("- - - - -");
+		// pr_alert("- - - - -");
 
 		VM_BUG_ON(!list_empty(&cc.freepages));
 		VM_BUG_ON(!list_empty(&cc.migratepages));
@@ -2320,8 +2320,8 @@ static int __init kcompactd_init(void)
 		return ret;
 	}
 
-	// for_each_node_state(nid, N_MEMORY)
-	// 	kcompactd_run(nid);
+	for_each_node_state(nid, N_MEMORY)
+		kcompactd_run(nid);
 	return 0;
 }
 subsys_initcall(kcompactd_init)

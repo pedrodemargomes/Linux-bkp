@@ -103,6 +103,8 @@
 
 #include <trace/events/sched.h>
 
+#include <linux/uidgid.h>
+
 #define CREATE_TRACE_POINTS
 #include <trace/events/task.h>
 
@@ -637,18 +639,12 @@ void __mmdrop(struct mm_struct *mm)
 	BUG_ON(mm == &init_mm);
 	WARN_ON_ONCE(mm == current->mm);
 	WARN_ON_ONCE(mm == current->active_mm);
-	// pr_alert("__mmdrop %d", current->pid);
 	mm_free_pgd(mm);
 	destroy_context(mm);
 	hmm_mm_destroy(mm);
 	mmu_notifier_mm_destroy(mm);
 	check_mm(mm);
 	put_user_ns(mm->user_ns);
-	
-	if (mm->memory_reservations) {
-		rm_destroy(mm->memory_reservations, 1);
-		mm->memory_reservations = NULL;
-	}
 	free_mm(mm);
 }
 EXPORT_SYMBOL_GPL(__mmdrop);
@@ -978,7 +974,9 @@ static struct mm_struct *mm_init(struct mm_struct *mm, struct task_struct *p,
 #endif
 
 	// if(!uid_eq(mm->owner->cred->uid, GLOBAL_ROOT_UID)) {
-		mm->memory_reservations = rm_node_create(); 
+		mm->memory_reservations = rm_node_create();
+		// mm->memory_reservations->pid = mm->owner->pid;
+		// pr_alert("mm->owner->pid = %d", mm->owner->pid);
 	// } else {
 	// 	mm->memory_reservations = NULL;
 	// }
@@ -1034,6 +1032,12 @@ static inline void __mmput(struct mm_struct *mm)
 	exit_aio(mm);
 	ksm_exit(mm);
 	khugepaged_exit(mm); /* must run before exit_mmap */
+	if (mm->memory_reservations) {
+		// pr_alert("rm_destroy BEGIN pid = %ld", (long int) mm->memory_reservations->pid);
+		rm_destroy(mm->memory_reservations, 1);
+		// pr_alert("rm_destroy END pid = %ld", (long int) mm->memory_reservations->pid);
+		mm->memory_reservations = NULL;
+	}
 	exit_mmap(mm);
 	mm_put_huge_zero_page(mm);
 	set_mm_exe_file(mm, NULL);

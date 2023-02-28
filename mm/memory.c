@@ -1327,7 +1327,7 @@ static unsigned long zap_pte_range(struct mmu_gather *tlb,
 				unsigned long addr, unsigned long end,
 				struct zap_details *details)
 {
-	pr_alert("zap_pte_range start = %lx end = %lx", addr, end);
+	// pr_alert("zap_pte_range start = %lx end = %lx", addr, end);
 	struct mm_struct *mm = tlb->mm;
 	int force_flush = 0;
 	int rss[NR_MM_COUNTERS];
@@ -1346,7 +1346,7 @@ again:
 	do {
 		pte_t ptent = *pte;
 		if (pte_none(ptent)) {
-			pr_alert("pte_none");
+			// pr_alert("pte_none");
 			continue;
 		}
 
@@ -1354,7 +1354,7 @@ again:
 			struct page *page;
 
 			page = _vm_normal_page(vma, addr, ptent, true);
-			pr_alert("page = %ld PageTransCompound(page) = %d", page_to_pfn(page), PageTransCompound(page));
+			// pr_alert("page = %ld PageTransCompound(page) = %d", page_to_pfn(page), PageTransCompound(page));
 			if (unlikely(details) && page) {
 				/*
 				 * unmap_shared_mapping_pages() wants to
@@ -1468,7 +1468,7 @@ static inline unsigned long zap_pmd_range(struct mmu_gather *tlb,
 				unsigned long addr, unsigned long end,
 				struct zap_details *details)
 {
-	pr_alert("zap_pmd_range addr = %lx end = %lx", addr, end);
+	// pr_alert("zap_pmd_range addr = %lx end = %lx", addr, end);
 	pmd_t *pmd;
 	unsigned long next;
 
@@ -1476,21 +1476,21 @@ static inline unsigned long zap_pmd_range(struct mmu_gather *tlb,
 	do {
 		next = pmd_addr_end(addr, end);
 		if (is_swap_pmd(*pmd) || pmd_trans_huge(*pmd) || pmd_devmap(*pmd)) {
-			pr_alert("pmd_trans_huge");
+			// pr_alert("pmd_trans_huge");
 			if (next - addr != HPAGE_PMD_SIZE) {
 				pr_alert("__split_huge_pmd addr = %lx", addr);
 				rm_release_reservation(vma, addr);
 				__split_huge_pmd(vma, pmd, addr, false, NULL);
 			} else if (zap_huge_pmd(tlb, vma, pmd, addr)) {
-				pr_alert("next");
+				// pr_alert("next");
 				goto next;
 			}
 			/* fall through */
-			pr_alert("fall through");
+			// pr_alert("fall through");
 		} else if (details && details->single_page &&
 			   PageTransCompound(details->single_page) &&
 			   next - addr == HPAGE_PMD_SIZE && pmd_none(*pmd)) {
-			pr_alert("details");
+			// pr_alert("details");
 			spinlock_t *ptl = pmd_lock(tlb->mm, pmd);
 			/*
 			 * Take and drop THP pmd lock so that we cannot return
@@ -1522,7 +1522,7 @@ static inline unsigned long zap_pud_range(struct mmu_gather *tlb,
 				unsigned long addr, unsigned long end,
 				struct zap_details *details)
 {
-	pr_alert("zap_pud_range addr = %lx end = %lx", addr, end);
+	// pr_alert("zap_pud_range addr = %lx end = %lx", addr, end);
 	pud_t *pud;
 	unsigned long next;
 
@@ -1552,7 +1552,7 @@ static inline unsigned long zap_p4d_range(struct mmu_gather *tlb,
 				unsigned long addr, unsigned long end,
 				struct zap_details *details)
 {
-	pr_alert("zap_p4d_range addr = %lx end = %lx", addr, end);
+	// pr_alert("zap_p4d_range addr = %lx end = %lx", addr, end);
 	p4d_t *p4d;
 	unsigned long next;
 
@@ -1572,7 +1572,7 @@ void unmap_page_range(struct mmu_gather *tlb,
 			     unsigned long addr, unsigned long end,
 			     struct zap_details *details)
 {
-	pr_alert("unmap_page_range addr = %lx end = %lx", addr, end);
+	// pr_alert("unmap_page_range addr = %lx end = %lx", addr, end);
 	pgd_t *pgd;
 	unsigned long next;
 
@@ -4544,8 +4544,8 @@ static vm_fault_t __handle_mm_fault(struct vm_area_struct *vma,
 		unsigned long haddr = vmf.address & RESERV_MASK;
 		struct page *head = get_page_from_rm((unsigned long) rm_entry->next_node);
 		if (PageTransCompound(head)) {
-			#ifdef DEBUG_RESERV_THP
 			pr_alert("PageTransCompound(head) == true return 0");
+			#ifdef DEBUG_RESERV_THP
 			for (i = 0; i < RESERV_NR; i++) {
 				pr_alert("memory.c page = %ld PageActive(page) = %d PageLRU(page) = %d page_count(page) = %d total_mapcount(page) = %d PageTransCompound(page) = %d", page_to_pfn(head+i), PageActive(head+i), PageLRU(head+i), page_count(head+i), total_mapcount(head+i), PageTransCompound(head+i));
 			}

@@ -3354,6 +3354,7 @@ get_page_from_freelist(gfp_t gfp_mask, unsigned int order, int alloc_flags,
 				continue;
 
 			ret = node_reclaim(zone->zone_pgdat, gfp_mask, order);
+			pr_alert("ret = %d", ret);
 			switch (ret) {
 			case NODE_RECLAIM_NOSCAN:
 				/* did not scan */
@@ -3505,6 +3506,12 @@ __alloc_pages_may_oom(gfp_t gfp_mask, unsigned int order,
 		return NULL;
 	}
 
+
+	struct zone *zones = NODE_DATA(numa_node_id())->node_zones;
+	pr_alert("out_of_memory high_wmark_pages((&zones[ZONE_NORMAL])) = %ld", high_wmark_pages((&zones[ZONE_NORMAL])));
+	pr_alert("out_of_memory zone_page_state(&zones[ZONE_NORMAL], NR_FREE_PAGES) = %ld", zone_page_state(&zones[ZONE_NORMAL], NR_FREE_PAGES));
+	pr_alert("out_of_memory zone_page_state(&zones[ZONE_DMA], NR_FREE_PAGES) = %ld", zone_page_state(&zones[ZONE_DMA], NR_FREE_PAGES));
+	pr_alert("out_of_memory zone_page_state(&zones[ZONE_DMA32], NR_FREE_PAGES) = %ld", zone_page_state(&zones[ZONE_DMA32], NR_FREE_PAGES));
 	/*
 	 * Go through the zonelist yet one more time, keep very high watermark
 	 * here, this is only to catch a parallel oom killing, we must fail if
@@ -3551,6 +3558,7 @@ __alloc_pages_may_oom(gfp_t gfp_mask, unsigned int order,
 	if (gfp_mask & __GFP_THISNODE)
 		goto out;
 
+	pr_alert("out of memory");
 	/* Exhausted what can be done so it's blame time */
 	if (out_of_memory(&oc) || WARN_ON_ONCE(gfp_mask & __GFP_NOFAIL)) {
 		*did_some_progress = 1;
@@ -4090,6 +4098,7 @@ __alloc_pages_slowpath(gfp_t gfp_mask, unsigned int order,
 	spinlock_t *next_lock;
 	struct rm_entry *rm_entry = NULL;
 	struct rm_entry *aux;
+	struct zone *zones;
 
 	/*
 	 * We also sanity check to catch abuse of atomic reserves being used by
@@ -4257,23 +4266,6 @@ retry:
 		goto retry_cpuset;
 
 	/* Reclaim has failed us, start killing things */
-	pr_alert("order = %d", order);
-	struct zone *zones = NODE_DATA(numa_node_id())->node_zones;
-	pr_alert("zone_page_state(&zones[ZONE_NORMAL], NR_FREE_PAGES) = %ld", zone_page_state(&zones[ZONE_NORMAL], NR_FREE_PAGES));
-	pr_alert("zone_page_state(&zones[ZONE_DMA], NR_FREE_PAGES) = %ld", zone_page_state(&zones[ZONE_DMA], NR_FREE_PAGES));
-	pr_alert("zone_page_state(&zones[ZONE_DMA32], NR_FREE_PAGES) = %ld", zone_page_state(&zones[ZONE_DMA32], NR_FREE_PAGES));
-	// pr_alert("zone_page_state(&zones[ZONE_NORMAL], NR_FREE_PAGES) = %ld", zone_page_state(&zones[ZONE_NORMAL], NR_FREE_PAGES));
-	// pr_alert("zone free pages = %ld", zone_page_state(&zones[ZONE_NORMAL], NR_FREE_PAGES));
-	spin_lock(&osa_hpage_list_lock);
-	list_for_each_entry_safe(rm_entry, aux, &osa_hpage_scan_list, osa_hpage_scan_link) {
-		next_lock = &rm_entry->lock;
-		spin_lock(next_lock);
-		pr_alert("rm_release_reservation_fast");
-		rm_release_reservation_fast(rm_entry);
-		spin_unlock(next_lock);
-	}
-	spin_unlock(&osa_hpage_list_lock);
-
 	page = __alloc_pages_may_oom(gfp_mask, order, ac, &did_some_progress);
 	if (page)
 		goto got_pg;
@@ -4400,7 +4392,10 @@ __alloc_pages_nodemask(gfp_t gfp_mask, unsigned int order, int preferred_nid,
 	unsigned int alloc_flags = ALLOC_WMARK_LOW;
 	gfp_t alloc_mask; /* The gfp_t that was actually used for allocation */
 	struct alloc_context ac = { };
-
+	spinlock_t  *next_lock;
+	struct rm_entry *rm_entry, *aux;
+	struct zone *zones;
+	
 	/*
 	 * There are several places where we assume that the order value is sane
 	 * so bail out early if the request is out of bound.
@@ -4438,9 +4433,27 @@ __alloc_pages_nodemask(gfp_t gfp_mask, unsigned int order, int preferred_nid,
 	if (unlikely(ac.nodemask != nodemask))
 		ac.nodemask = nodemask;
 
+	// pr_alert("order = %d", order);
+	zones = NODE_DATA(numa_node_id())->node_zones;
+	// pr_alert("zone_page_state(&zones[ZONE_NORMAL], NR_FREE_PAGES) = %ld", zone_page_state(&zones[ZONE_NORMAL], NR_FREE_PAGES));
+	// pr_alert("zone_page_state(&zones[ZONE_DMA], NR_FREE_PAGES) = %ld", zone_page_state(&zones[ZONE_DMA], NR_FREE_PAGES));
+	// pr_alert("zone_page_state(&zones[ZONE_DMA32], NR_FREE_PAGES) = %ld", zone_page_state(&zones[ZONE_DMA32], NR_FREE_PAGES));
+	spin_lock(&osa_hpage_list_lock);
+	list_for_each_entry_safe(rm_entry, aux, &osa_hpage_scan_list, osa_hpage_scan_link) {
+		next_lock = &rm_entry->lock;
+		spin_lock(next_lock);
+		// pr_alert("rm_release_reservation_fast rm_entry->head = %ld", page_to_pfn(get_page_from_rm((unsigned long)(rm_entry->next_node))) );
+		rm_release_reservation_fast(rm_entry);
+		spin_unlock(next_lock);
+		if (zone_page_state(&zones[ZONE_NORMAL], NR_FREE_PAGES) > high_wmark_pages((&zones[ZONE_NORMAL])))
+			break;
+	}
+	spin_unlock(&osa_hpage_list_lock);
+
 	page = __alloc_pages_slowpath(alloc_mask, order, &ac);
 
 out:
+	// pr_alert("page = %ld", page_to_pfn(page));
 	if (memcg_kmem_enabled() && (gfp_mask & __GFP_ACCOUNT) && page &&
 	    unlikely(memcg_kmem_charge(page, gfp_mask, order) != 0)) {
 		__free_pages(page, order);

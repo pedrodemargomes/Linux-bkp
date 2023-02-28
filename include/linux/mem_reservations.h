@@ -6,6 +6,7 @@
 #include <linux/spinlock.h>
 #include <linux/mm_types.h>
 #include <linux/types.h>
+#include <linux/uidgid.h>
 
 #define RESERV_ORDER           9
 #define RESERV_SHIFT           (RESERV_ORDER + PAGE_SHIFT) // 9 + 12 = 21
@@ -35,6 +36,7 @@ struct rm_entry {
 
 struct rm_node {
   struct rm_entry items[RT_NODE_RANGE_SIZE];
+  // int pid;
 };
 
 static inline unsigned int get_node_index(unsigned char level, unsigned long address) {

@@ -118,14 +118,13 @@ void osa_hpage_enter_list(struct rm_entry *rm_entry)
 
 void osa_hpage_exit_list(struct rm_entry *rm_entry)
 {
-	spin_lock(&osa_hpage_list_lock);
-
 	VM_BUG_ON(!rm_entry);
-	if (rm_entry->part_pop)
-		list_del(&rm_entry->osa_hpage_scan_link);
-
+	if (!rm_entry->part_pop)
+		return;
+	
+	spin_lock(&osa_hpage_list_lock);
+	list_del(&rm_entry->osa_hpage_scan_link);
 	rm_entry->part_pop = false;
-
 	spin_unlock(&osa_hpage_list_lock);
 }
 
@@ -136,7 +135,7 @@ void osa_hpage_do_scan(void)
 	unsigned int timestamp;
 	spinlock_t  *next_lock;
 
-	pr_alert("osa_hpage_do_scan");
+	// pr_alert("osa_hpage_do_scan");
 
 	int list_size = 0;
 
@@ -155,10 +154,11 @@ void osa_hpage_do_scan(void)
 	list_for_each_entry_safe(rm_entry, aux, &osa_hpage_scan_list, osa_hpage_scan_link) {
 		timestamp = rm_entry->timestamp;
 		if (jiffies_to_msecs(jiffies) - timestamp > 5000) {
-			pr_alert("timestamp = %u", jiffies_to_msecs(jiffies) - timestamp);
+			// pr_alert("timestamp = %u", jiffies_to_msecs(jiffies) - timestamp);
 
 			next_lock = &rm_entry->lock;
 			if (spin_trylock(next_lock)) {
+				// pr_alert("rm_release_reservation_fast rm_entry->head = %ld", page_to_pfn(get_page_from_rm((unsigned long)(rm_entry->next_node))) );
 				rm_release_reservation_fast(rm_entry);
 				list_size++;
 				spin_unlock(next_lock);
@@ -243,14 +243,14 @@ static int __init osa_hugepage_init(void)
 
 	INIT_LIST_HEAD(&osa_hpage_scan_list);
 
-	// err = start_stop_osa_hpage_scand();
-	// if (err)
-	// 	goto err_sysfs;
+	err = start_stop_osa_hpage_scand();
+	if (err)
+		goto err_sysfs;
 
-	// /* init sysfs */
-	// err = reserve_tracking_init_sysfs();
-	// if (err)
-	// 	goto err_sysfs;
+	/* init sysfs */
+	err = reserve_tracking_init_sysfs();
+	if (err)
+		goto err_sysfs;
 
 	return 0;
 

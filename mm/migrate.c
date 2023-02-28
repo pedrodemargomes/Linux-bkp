@@ -510,7 +510,7 @@ int migrate_page_move_mapping(struct address_space *mapping,
 	 */
 	newpage->index = page->index;
 	newpage->mapping = page->mapping;
-	pr_alert("migrate_page_move_mapping");
+	// pr_alert("migrate_page_move_mapping");
 	page_ref_add(newpage, hpage_nr_pages(page)); /* add cache reference */
 	if (PageSwapBacked(page)) {
 		__SetPageSwapBacked(newpage);
