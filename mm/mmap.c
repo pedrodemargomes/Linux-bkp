@@ -2783,7 +2783,12 @@ int do_munmap(struct mm_struct *mm, unsigned long start, size_t len,
 	if (vma->vm_start >= end)
 		return 0;
 
-	// pr_alert("do_munmap start = %lx end = %lx", start, end);
+	// pr_alert("INIT do_munmap");
+	it_addr = start;
+	for (; it_addr < end; it_addr += PAGE_SIZE) {
+		rm_release_reservation(vma, it_addr);
+	}
+	// pr_alert("END do_munmap");
 
 	// it_addr = start;
 	// for (; it_addr < end; it_addr += PAGE_SIZE) {
@@ -2809,20 +2814,8 @@ int do_munmap(struct mm_struct *mm, unsigned long start, size_t len,
 	// 	if (PageTransCompound(page)) {
 	// 		page = compound_head(page);
 	// 		pr_alert("= INIT =");
-	// 		for (i = 0; i < RESERV_NR; i++) {
-	// 			anon_vma = page_get_anon_vma(page+i);
-	// 			if (!anon_vma) {
-	// 				pr_alert("before anon_vma = NULL page = %ld PageActive(page) = %d PageLRU(page) = %d page_count(page) = %d total_mapcount(page) = %d PageTransCompound(page) = %d", page_to_pfn(page+i), PageActive(page+i), PageLRU(page+i), page_count(page+i), total_mapcount(page+i), PageTransCompound(page+i));
-	// 				continue;
-	// 			}
+	// 		for (i = 0; i < 2; i++) {
 	// 			pr_alert("before page = %ld PageActive(page) = %d PageLRU(page) = %d page_count(page) = %d total_mapcount(page) = %d PageTransCompound(page) = %d", page_to_pfn(page+i), PageActive(page+i), PageLRU(page+i), page_count(page+i), total_mapcount(page+i), PageTransCompound(page+i));
-	// 			// anon_vma_lock_read(anon_vma);
-	// 			// anon_vma_interval_tree_foreach(vmac, &anon_vma->rb_root, 0, ULONG_MAX) {
-	// 			// 	vma = vmac->vma;
-	// 			// 	if (vma && vma->vm_mm)
-	// 			// 		pr_alert("vma->vm_mm->owner->pid = %d", vma->vm_mm->owner->pid);
-	// 			// }
-	// 			// anon_vma_unlock_read(anon_vma);
 	// 		}
 	// 		pr_alert("= FIM =");
 	// 		break;
@@ -2852,12 +2845,6 @@ int do_munmap(struct mm_struct *mm, unsigned long start, size_t len,
 			return error;
 		prev = vma;
 	}
-	// pr_alert("INIT do_munmap");
-	it_addr = start;
-	for (; it_addr < end; it_addr += PAGE_SIZE) {
-		rm_release_reservation(vma, it_addr);
-	}
-	// pr_alert("END do_munmap");
 
 	/* Does it split the last one? */
 	last = find_vma(mm, end);
@@ -2867,50 +2854,6 @@ int do_munmap(struct mm_struct *mm, unsigned long start, size_t len,
 			return error;
 	}
 	vma = prev ? prev->vm_next : mm->mmap;
-
-	// it_addr = start;
-	// for (; it_addr < end; it_addr += PAGE_SIZE) {
-
-	// 	struct mm_struct *mm = current->mm;
-	// 	pgd_t *pgd = pgd_offset(mm, it_addr);
-	// 	p4d_t *p4d = p4d_offset(pgd, it_addr);
-	// 	if (!p4d_present(*p4d))
-	// 		continue;
-	// 	pud_t *pud = pud_offset(p4d, it_addr);
-	// 	if (!pud_present(*pud))
-	// 		continue;
-	// 	pmd_t *pmd = pmd_offset(pud, it_addr);
-	// 	if (!pmd_present(*pmd))
-	// 		continue;
-	// 	if (!pmd_trans_huge(*pmd))
-	// 		continue;
-	// 	page = pmd_page(*pmd);
-
-	// 	// struct page *page = get_head_page_from_reservation(vma, it_addr);
-	// 	// if (!page)
-	// 	// 	continue;
-	// 	if (PageTransCompound(page)) {
-	// 		page = compound_head(page);
-	// 		pr_alert("= INIT =");
-	// 		for (i = 0; i < RESERV_NR; i++) {
-	// 			anon_vma = page_get_anon_vma(page+i);
-	// 			if (!anon_vma) {
-	// 				pr_alert("after anon_vma = NULL page = %ld PageActive(page) = %d PageLRU(page) = %d page_count(page) = %d total_mapcount(page) = %d PageTransCompound(page) = %d", page_to_pfn(page+i), PageActive(page+i), PageLRU(page+i), page_count(page+i), total_mapcount(page+i), PageTransCompound(page+i));
-	// 				continue;
-	// 			}
-	// 			pr_alert("after page = %ld PageActive(page) = %d PageLRU(page) = %d page_count(page) = %d total_mapcount(page) = %d PageTransCompound(page) = %d", page_to_pfn(page+i), PageActive(page+i), PageLRU(page+i), page_count(page+i), total_mapcount(page+i), PageTransCompound(page+i));
-	// 			// anon_vma_lock_read(anon_vma);
-	// 			// anon_vma_interval_tree_foreach(vmac, &anon_vma->rb_root, 0, ULONG_MAX) {
-	// 			// 	vma = vmac->vma;
-	// 			// 	if (vma && vma->vm_mm)
-	// 			// 		pr_alert("vma->vm_mm->owner->pid = %d", vma->vm_mm->owner->pid);
-	// 			// }
-	// 			// anon_vma_unlock_read(anon_vma);
-	// 		}
-	// 		pr_alert("= FIM =");
-	// 		break;
-	// 	}
-	// }
 
 	if (unlikely(uf)) {
 		/*
@@ -2940,6 +2883,12 @@ int do_munmap(struct mm_struct *mm, unsigned long start, size_t len,
 			tmp = tmp->vm_next;
 		}
 	}
+
+	// if (page) {
+	// 	for (i = 0; i < 2; i++) {
+	// 		pr_alert("before page = %ld PageActive(page) = %d PageLRU(page) = %d page_count(page) = %d total_mapcount(page) = %d PageTransCompound(page) = %d", page_to_pfn(page+i), PageActive(page+i), PageLRU(page+i), page_count(page+i), total_mapcount(page+i), PageTransCompound(page+i));
+	// 	}
+	// }
 
 	/*
 	 * Remove the vma's, and unmap the actual pages

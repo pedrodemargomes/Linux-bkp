@@ -3589,6 +3589,7 @@ __alloc_pages_direct_compact(gfp_t gfp_mask, unsigned int order,
 		unsigned int alloc_flags, const struct alloc_context *ac,
 		enum compact_priority prio, enum compact_result *compact_result)
 {
+	// pr_alert("__alloc_pages_direct_compact");
 	struct page *page;
 	unsigned int noreclaim_flag;
 
@@ -3794,6 +3795,7 @@ static int
 __perform_reclaim(gfp_t gfp_mask, unsigned int order,
 					const struct alloc_context *ac)
 {
+	// pr_alert("__perform_reclaim");
 	struct reclaim_state reclaim_state;
 	int progress;
 	unsigned int noreclaim_flag;
@@ -3825,6 +3827,7 @@ __alloc_pages_direct_reclaim(gfp_t gfp_mask, unsigned int order,
 		unsigned int alloc_flags, const struct alloc_context *ac,
 		unsigned long *did_some_progress)
 {
+	// pr_alert("__alloc_pages_direct_reclaim");
 	struct page *page = NULL;
 	bool drained = false;
 
@@ -3853,6 +3856,7 @@ retry:
 static void wake_all_kswapds(unsigned int order, gfp_t gfp_mask,
 			     const struct alloc_context *ac)
 {
+	// pr_alert("wake_all_kswapds");
 	struct zoneref *z;
 	struct zone *zone;
 	pg_data_t *last_pgdat = NULL;
@@ -4085,6 +4089,7 @@ __alloc_pages_slowpath(gfp_t gfp_mask, unsigned int order,
 						struct alloc_context *ac)
 {
 	bool can_direct_reclaim = gfp_mask & __GFP_DIRECT_RECLAIM;
+	// pr_alert("can_direct_reclaim = %d order = %d ac = %p", can_direct_reclaim, order, ac);
 	const bool costly_order = order > PAGE_ALLOC_COSTLY_ORDER;
 	struct page *page = NULL;
 	unsigned int alloc_flags;
@@ -4140,6 +4145,7 @@ retry_cpuset:
 	 * that first
 	 */
 	page = get_page_from_freelist(gfp_mask, order, alloc_flags, ac);
+	// pr_alert("get_page_from_freelist page = %p ac = %p", page, ac);
 	if (page)
 		goto got_pg;
 
@@ -4210,6 +4216,7 @@ retry:
 
 	/* Attempt with potentially adjusted zonelist and alloc_flags */
 	page = get_page_from_freelist(gfp_mask, order, alloc_flags, ac);
+	// pr_alert("2 get_page_from_freelist page = %p ac = %p", page, ac);
 	if (page)
 		goto got_pg;
 
@@ -4217,6 +4224,7 @@ retry:
 	if (!can_direct_reclaim)
 		goto nopage;
 
+	// pr_alert("current->flags & PF_MEMALLOC = %d ac = %p", current->flags & PF_MEMALLOC, ac);
 	/* Avoid recursion of direct reclaim */
 	if (current->flags & PF_MEMALLOC)
 		goto nopage;
@@ -4434,21 +4442,23 @@ __alloc_pages_nodemask(gfp_t gfp_mask, unsigned int order, int preferred_nid,
 		ac.nodemask = nodemask;
 
 	// pr_alert("order = %d", order);
-	zones = NODE_DATA(numa_node_id())->node_zones;
+	// zones = NODE_DATA(numa_node_id())->node_zones;
 	// pr_alert("zone_page_state(&zones[ZONE_NORMAL], NR_FREE_PAGES) = %ld", zone_page_state(&zones[ZONE_NORMAL], NR_FREE_PAGES));
 	// pr_alert("zone_page_state(&zones[ZONE_DMA], NR_FREE_PAGES) = %ld", zone_page_state(&zones[ZONE_DMA], NR_FREE_PAGES));
 	// pr_alert("zone_page_state(&zones[ZONE_DMA32], NR_FREE_PAGES) = %ld", zone_page_state(&zones[ZONE_DMA32], NR_FREE_PAGES));
-	spin_lock(&osa_hpage_list_lock);
-	list_for_each_entry_safe(rm_entry, aux, &osa_hpage_scan_list, osa_hpage_scan_link) {
-		next_lock = &rm_entry->lock;
-		spin_lock(next_lock);
-		// pr_alert("rm_release_reservation_fast rm_entry->head = %ld", page_to_pfn(get_page_from_rm((unsigned long)(rm_entry->next_node))) );
-		rm_release_reservation_fast(rm_entry);
-		spin_unlock(next_lock);
-		if (zone_page_state(&zones[ZONE_NORMAL], NR_FREE_PAGES) > high_wmark_pages((&zones[ZONE_NORMAL])))
-			break;
-	}
-	spin_unlock(&osa_hpage_list_lock);
+	// spin_lock(&osa_hpage_list_lock);
+	// list_for_each_entry_safe(rm_entry, aux, &osa_hpage_scan_list, osa_hpage_scan_link) {
+	// 	next_lock = &rm_entry->lock;
+	// 	spin_lock(next_lock);
+	// 	pr_alert("rm_release_reservation_fast rm_entry->head = %ld", page_to_pfn(get_page_from_rm((unsigned long)(rm_entry->next_node))) );
+	// 	rm_release_reservation_fast(rm_entry);
+	// 	spin_unlock(next_lock);
+	// 	if (zone_page_state(&zones[ZONE_NORMAL], NR_FREE_PAGES) > high_wmark_pages((&zones[ZONE_NORMAL]))) {
+	// 		pr_alert("zone_page_state(&zones[ZONE_NORMAL], NR_FREE_PAGES) = %ld", zone_page_state(&zones[ZONE_NORMAL], NR_FREE_PAGES));
+	// 		break;
+	// 	}
+	// }
+	// spin_unlock(&osa_hpage_list_lock);
 
 	page = __alloc_pages_slowpath(alloc_mask, order, &ac);
 

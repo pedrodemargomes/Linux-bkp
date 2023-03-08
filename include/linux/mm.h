@@ -967,6 +967,9 @@ static inline void put_page(struct page *page)
 {
 	page = compound_head(page);
 
+	// if (PageTransCompound(page))
+	// 	pr_alert("put_page page_to_pfn(page) = %ld", page_to_pfn(page));
+
 	/*
 	 * For devmap managed pages we need to catch refcount transition from
 	 * 2 to 1, when refcount reach one it means the page is free and we

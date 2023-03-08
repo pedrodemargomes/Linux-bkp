@@ -787,6 +787,7 @@ int pud_clear_huge(pud_t *pud)
 int pmd_clear_huge(pmd_t *pmd)
 {
 	if (pmd_large(*pmd)) {
+		pr_alert("pmd_clear_huge pmd_val(*pmd) = %lx", pmd_val(*pmd));
 		pmd_clear(pmd);
 		return 1;
 	}
@@ -821,8 +822,10 @@ int pud_free_pmd_page(pud_t *pud, unsigned long addr)
 
 	for (i = 0; i < PTRS_PER_PMD; i++) {
 		pmd_sv[i] = pmd[i];
-		if (!pmd_none(pmd[i]))
+		if (!pmd_none(pmd[i])) {
+			pr_alert("pud_free_pmd_page pmd_val(*pmd) = %lx", pmd_val(pmd[i]));
 			pmd_clear(&pmd[i]);
+		}
 	}
 
 	pud_clear(pud);

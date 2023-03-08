@@ -973,13 +973,12 @@ static struct mm_struct *mm_init(struct mm_struct *mm, struct task_struct *p,
 	mm->pmd_huge_pte = NULL;
 #endif
 
-	// if(!uid_eq(mm->owner->cred->uid, GLOBAL_ROOT_UID)) {
+	if(!uid_eq(mm->owner->cred->uid, GLOBAL_ROOT_UID)) {
 		mm->memory_reservations = rm_node_create();
-		// mm->memory_reservations->pid = mm->owner->pid;
 		// pr_alert("mm->owner->pid = %d", mm->owner->pid);
-	// } else {
-	// 	mm->memory_reservations = NULL;
-	// }
+	} else {
+		mm->memory_reservations = NULL;
+	}
 
 	mm_init_uprobes_state(mm);
 	hugetlb_count_init(mm);

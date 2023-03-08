@@ -1773,11 +1773,17 @@ int zap_huge_pmd(struct mmu_gather *tlb, struct vm_area_struct *vma,
 	pmd_t orig_pmd;
 	spinlock_t *ptl;
 
+	struct page *page = pmd_page(*pmd);
+	// pr_alert("before next addr = %lx PageTransCompound(page) = %d page_to_pfn(page) = %lx page_count(page) = %d total_mapcount(page) = %d", addr, PageTransCompound(page), page_to_pfn(page), page_count(page), total_mapcount(page));
+	// pr_alert("before next addr = %lx PageTransCompound(page) = %d page_to_pfn(page) = %lx page_count(page) = %d total_mapcount(page) = %d", addr, PageTransCompound(page+1), page_to_pfn(page+1), page_count(page+1), total_mapcount(page+1));
+
 	tlb_remove_check_page_size_change(tlb, HPAGE_PMD_SIZE);
 
 	ptl = __pmd_trans_huge_lock(pmd, vma);
 	if (!ptl)
 		return 0;
+
+	rm_release_reservation(vma, addr);
 	/*
 	 * For architectures like ppc64 we look at deposited pgtable
 	 * when calling pmdp_huge_get_and_clear. So do the
@@ -1800,10 +1806,8 @@ int zap_huge_pmd(struct mmu_gather *tlb, struct vm_area_struct *vma,
 	} else {
 		struct page *page = NULL;
 		int flush_needed = 1;
-		// pr_alert("zap_huge_pmd else");
 		if (pmd_present(orig_pmd)) {
 			page = pmd_page(orig_pmd);
-			// pr_alert("zap_huge_pmd else addr = %lx page_to_pfn(page) = %ld", addr, page_to_pfn(page));
 			page_remove_rmap(page, true);
 			VM_BUG_ON_PAGE(page_mapcount(page) < 0, page);
 			VM_BUG_ON_PAGE(!PageHead(page), page);
@@ -2235,7 +2239,6 @@ static void __split_huge_pmd_locked(struct vm_area_struct *vma, pmd_t *pmd,
 		soft_dirty = pmd_soft_dirty(old_pmd);
 	}
 	VM_BUG_ON_PAGE(!page_count(page), page);
-	// pr_alert("__split_huge_pmd_locked page_to_pfn(page) = %ld", page_to_pfn(page));
 	page_ref_add(page, HPAGE_PMD_NR - 1);
 
 	/*
@@ -2347,6 +2350,7 @@ repeat:
 			 */
 			if (PageAnon(page)) {
 				if (unlikely(!trylock_page(page))) {
+					pr_alert("!trylock_page");
 					get_page(page);
 					_pmd = *pmd;
 					spin_unlock(ptl);
@@ -2368,6 +2372,7 @@ repeat:
 	} else if (!(pmd_devmap(*pmd) || is_pmd_migration_entry(*pmd)))
 		goto out;
 	__split_huge_pmd_locked(vma, pmd, haddr, freeze);
+	// pr_alert("after __split_huge_pmd_locked haddr = %lx PageTransCompound(page) = %d page_to_pfn(page) = %ld page_count(page) = %d total_mapcount(page) = %d", haddr, PageTransCompound(page), page_to_pfn(page), page_count(page), total_mapcount(page));
 out:
 	spin_unlock(ptl);
 	if (do_unlock_page)
@@ -2712,9 +2717,9 @@ int promote_huge_pmd_address(struct vm_area_struct *vma, unsigned long haddr, st
 
 	pmd = mm_find_pmd(mm, haddr);
 	if (!pmd || pmd_trans_huge(*pmd)) {
-		#ifdef DEBUG_RESERV_THP
+		// #ifdef DEBUG_RESERV_THP
 		pr_alert("!pmd || pmd_trans_huge(*pmd)");
-		#endif
+		// #endif
 		goto out_unlock;
 	}
 
@@ -2726,9 +2731,9 @@ int promote_huge_pmd_address(struct vm_area_struct *vma, unsigned long haddr, st
 	page = head;
 	// head = page = vm_normal_page(vma, haddr, *pte);
 	if (!page || !PageTransCompound(page)) {
-		#ifdef DEBUG_RESERV_THP
+		// #ifdef DEBUG_RESERV_THP
 		pr_alert("!page || !PageTransCompound(page) page = %ld PageTransCompound(page) = %d", page_to_pfn(page), PageTransCompound(page));
-		#endif
+		// #endif
 		goto out_unlock;
 	}
 
@@ -2845,7 +2850,7 @@ int promote_huge_pmd_address(struct vm_area_struct *vma, unsigned long haddr, st
 		#endif
 	}
 	// page_ref_sub(head, HPAGE_PMD_NR - 1);
-	set_page_count(head, 2);
+	set_page_count(head, 2); // 2
 
 	pte_unmap(pte);
 	__SetPageUptodate(head);
@@ -2872,6 +2877,7 @@ int promote_huge_pmd_address(struct vm_area_struct *vma, unsigned long haddr, st
 	update_mmu_cache_pmd(vma, haddr, pmd);
 	spin_unlock(pmd_ptl);
 	mmu_notifier_invalidate_range_end(mm, mmun_start, mmun_end);
+	prep_transhuge_page(head);
 	unlock_page(head);
 	ret = 0;
 
@@ -2894,7 +2900,7 @@ int promote_huge_page_address(struct vm_area_struct *vma, struct page *head, uns
 
 	pmd_t *pmd = mm_find_pmd(vma->vm_mm, haddr);
 	if (!pmd || pmd_trans_huge(*pmd)) {
-		// pr_alert("!pmd || pmd_trans_huge(*pmd)");
+		pr_alert("!pmd || pmd_trans_huge(*pmd)");
 		return -EINVAL;
 	}
 	pte_t *pte = pte_offset_map(pmd, haddr);
@@ -2987,7 +2993,7 @@ int split_huge_page_to_list(struct page *page, struct list_head *list)
 	VM_BUG_ON_PAGE(!PageCompound(page), page);
 
 	if (PageWriteback(page)) {
-		pr_alert("PageWriteback");
+		// pr_alert("PageWriteback");
 		return -EBUSY;
 	}
 
@@ -3003,7 +3009,7 @@ int split_huge_page_to_list(struct page *page, struct list_head *list)
 		anon_vma = page_get_anon_vma(head);
 		if (!anon_vma) {
 			ret = -EBUSY;
-			pr_alert("!anon_vma");
+			// pr_alert("!anon_vma");
 			goto out;
 		}
 		end = -1;
@@ -3015,7 +3021,7 @@ int split_huge_page_to_list(struct page *page, struct list_head *list)
 		/* Truncated ? */
 		if (!mapping) {
 			ret = -EBUSY;
-			pr_alert("!mapping");
+			// pr_alert("!mapping");
 			goto out;
 		}
 
@@ -3071,12 +3077,10 @@ int split_huge_page_to_list(struct page *page, struct list_head *list)
 	/* Prevent deferred_split_scan() touching ->_refcount */
 	spin_lock(&pgdata->split_queue_lock);
 	if (page_ref_freeze(head, 1 + extra_pins)) {
-		// if (!list_empty(page_deferred_list(head))) {
-		// 	pgdata->split_queue_len--;
-		// 	pr_alert("list_del");
-		// 	list_del(page_deferred_list(head));
-		// 	pr_alert("++ list_del ++");
-		// }
+		if (!list_empty(page_deferred_list(head))) {
+			pgdata->split_queue_len--;
+			list_del(page_deferred_list(head));
+		}
 		if (mapping)
 			__dec_node_page_state(page, NR_SHMEM_THPS);
 		spin_unlock(&pgdata->split_queue_lock);
@@ -3143,17 +3147,20 @@ static unsigned long deferred_split_count(struct shrinker *shrink,
 		struct shrink_control *sc)
 {
 	struct pglist_data *pgdata = NODE_DATA(sc->nid);
+	// pr_alert("split_queue_len = %ld",  READ_ONCE(pgdata->split_queue_len));
 	return READ_ONCE(pgdata->split_queue_len);
 }
 
 static unsigned long deferred_split_scan(struct shrinker *shrink,
 		struct shrink_control *sc)
 {
+	// pr_alert("deferred_split_scan");
 	struct pglist_data *pgdata = NODE_DATA(sc->nid);
 	unsigned long flags;
 	LIST_HEAD(list), *pos, *next;
 	struct page *page;
 	int split = 0;
+	// pr_alert("sc->nr_to_scan = %ld", sc->nr_to_scan);
 
 	spin_lock_irqsave(&pgdata->split_queue_lock, flags);
 	/* Take pin on all head pages to avoid freeing them under us */
@@ -3161,9 +3168,11 @@ static unsigned long deferred_split_scan(struct shrinker *shrink,
 		page = list_entry((void *)pos, struct page, mapping);
 		page = compound_head(page);
 		if (get_page_unless_zero(page)) {
+			// pr_alert("list_move(page_deferred_list(page), &list)");
 			list_move(page_deferred_list(page), &list);
 		} else {
 			/* We lost race with put_compound_page() */
+			// pr_alert("list_del_init(page_deferred_list(page))");
 			list_del_init(page_deferred_list(page));
 			pgdata->split_queue_len--;
 		}
@@ -3174,11 +3183,16 @@ static unsigned long deferred_split_scan(struct shrinker *shrink,
 
 	list_for_each_safe(pos, next, &list) {
 		page = list_entry((void *)pos, struct page, mapping);
-		if (!trylock_page(page))
+		if (!trylock_page(page)) {
+			// pr_alert("goto next");
 			goto next;
+		}
 		/* split_huge_page() removes page from list on success */
-		if (!split_huge_page(page))
+		// pr_alert("split_huge_page(page)");
+		if (!split_huge_page(page)) {
+			// pr_alert("split++");
 			split++;
+		}
 		unlock_page(page);
 next:
 		put_page(page);
@@ -3192,8 +3206,10 @@ next:
 	 * Stop shrinker if we didn't split any page, but the queue is empty.
 	 * This can happen if pages were freed under us.
 	 */
-	if (!split && list_empty(&pgdata->split_queue))
+	if (!split && list_empty(&pgdata->split_queue)) {
+		// pr_alert("SHRINK_STOP");
 		return SHRINK_STOP;
+	}
 	return split;
 }
 

@@ -462,9 +462,10 @@ static unsigned long do_shrink_slab(struct shrink_control *shrinkctl,
 		nid = 0;
 
 	freeable = shrinker->count_objects(shrinker, shrinkctl);
-	if (freeable == 0 || freeable == SHRINK_EMPTY)
+	if (freeable == 0 || freeable == SHRINK_EMPTY) {
+		// pr_alert("freeable empty");
 		return freeable;
-
+	}
 	/*
 	 * copy the current shrinker scan count into a local variable
 	 * and zero it so that other concurrent shrinker invocations
@@ -535,8 +536,10 @@ static unsigned long do_shrink_slab(struct shrink_control *shrinkctl,
 		shrinkctl->nr_to_scan = nr_to_scan;
 		shrinkctl->nr_scanned = nr_to_scan;
 		ret = shrinker->scan_objects(shrinker, shrinkctl);
-		if (ret == SHRINK_STOP)
+		if (ret == SHRINK_STOP) {
+			// pr_alert("SHRINK_STOP");
 			break;
+		}
 		freed += ret;
 
 		count_vm_events(SLABS_SCANNED, shrinkctl->nr_scanned);
@@ -2974,6 +2977,7 @@ static void shrink_zones(struct zonelist *zonelist, struct scan_control *sc)
 		if (zone->zone_pgdat == last_pgdat)
 			continue;
 		last_pgdat = zone->zone_pgdat;
+		// pr_alert("shrink_zones");
 		shrink_node(zone->zone_pgdat, sc);
 	}
 
@@ -3018,6 +3022,7 @@ static void snapshot_refaults(struct mem_cgroup *root_memcg, pg_data_t *pgdat)
 static unsigned long do_try_to_free_pages(struct zonelist *zonelist,
 					  struct scan_control *sc)
 {
+	// pr_alert("do_try_to_free_pages");
 	int initial_priority = sc->priority;
 	pg_data_t *last_pgdat;
 	struct zoneref *z;
@@ -3214,6 +3219,7 @@ out:
 unsigned long try_to_free_pages(struct zonelist *zonelist, int order,
 				gfp_t gfp_mask, nodemask_t *nodemask)
 {
+	// pr_alert("try_to_free_pages");
 	unsigned long nr_reclaimed;
 	struct scan_control sc = {
 		.nr_to_reclaim = SWAP_CLUSTER_MAX,
@@ -3377,8 +3383,9 @@ static bool pgdat_balanced(pg_data_t *pgdat, int order, int classzone_idx)
 			continue;
 
 		mark = high_wmark_pages(zone);
-		if (zone_watermark_ok_safe(zone, order, mark, classzone_idx))
+		if (zone_watermark_ok_safe(zone, order, mark, classzone_idx)) {
 			return true;
+		}
 	}
 
 	/*
@@ -3386,8 +3393,9 @@ static bool pgdat_balanced(pg_data_t *pgdat, int order, int classzone_idx)
 	 * need balancing by definition. This can happen if a zone-restricted
 	 * allocation tries to wake a remote kswapd.
 	 */
-	if (mark == -1)
+	if (mark == -1) {
 		return true;
+	}
 
 	return false;
 }

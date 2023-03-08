@@ -848,6 +848,7 @@ static void __meminit free_pte_table(pte_t *pte_start, pmd_t *pmd)
 	/* free a pte talbe */
 	free_pagetable(pmd_page(*pmd), 0);
 	spin_lock(&init_mm.page_table_lock);
+	pr_alert("free_pte_table pmd_val(*pmd) = %lx", pmd_val(*pmd));
 	pmd_clear(pmd);
 	spin_unlock(&init_mm.page_table_lock);
 }
@@ -963,6 +964,7 @@ static void __meminit
 remove_pmd_table(pmd_t *pmd_start, unsigned long addr, unsigned long end,
 		 bool direct, struct vmem_altmap *altmap)
 {
+	pr_alert("remove_pmd_table PMD %lx ", pmd_val(*pmd_start));
 	unsigned long next, pages = 0;
 	pte_t *pte_base;
 	pmd_t *pmd;

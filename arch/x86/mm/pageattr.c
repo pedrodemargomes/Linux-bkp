@@ -824,6 +824,7 @@ static bool unmap_pte_range(pmd_t *pmd, unsigned long start, unsigned long end)
 	}
 
 	if (try_to_free_pte_page((pte_t *)pmd_page_vaddr(*pmd))) {
+		pr_alert("unmap_pte_range pmd_val(*pmd) = %lx", pmd_val(*pmd));
 		pmd_clear(pmd);
 		return true;
 	}
@@ -859,9 +860,10 @@ static void unmap_pmd_range(pud_t *pud, unsigned long start, unsigned long end)
 	 * Try to unmap in 2M chunks.
 	 */
 	while (end - start >= PMD_SIZE) {
-		if (pmd_large(*pmd))
+		if (pmd_large(*pmd)){
+			pr_alert("unmap_pmd_range pmd_val(*pmd) = %lx", pmd_val(*pmd));
 			pmd_clear(pmd);
-		else
+		}else
 			__unmap_pmd_range(pud, pmd, start, start + PMD_SIZE);
 
 		start += PMD_SIZE;

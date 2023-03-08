@@ -139,6 +139,7 @@ static inline pmd_t pmdp_huge_get_and_clear(struct mm_struct *mm,
 					    pmd_t *pmdp)
 {
 	pmd_t pmd = *pmdp;
+	pr_alert("pmdp_huge_get_and_clear");
 	pmd_clear(pmdp);
 	return pmd;
 }
