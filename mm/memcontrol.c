@@ -2392,6 +2392,7 @@ static void lock_page_lru(struct page *page, int *isolated)
 		struct lruvec *lruvec;
 
 		lruvec = mem_cgroup_page_lruvec(page, zone->zone_pgdat);
+		// pr_info("ClearPageLRU page_to_pfn(page) = %ld lock_page_lru", page_to_pfn(page));
 		ClearPageLRU(page);
 		del_page_from_lru_list(page, lruvec, page_lru(page));
 		*isolated = 1;
@@ -2408,6 +2409,7 @@ static void unlock_page_lru(struct page *page, int isolated)
 
 		lruvec = mem_cgroup_page_lruvec(page, zone->zone_pgdat);
 		VM_BUG_ON_PAGE(PageLRU(page), page);
+		// pr_info("SetPageLRU page_to_pfn(page) = %ld unlock_page_lru", page_to_pfn(page));
 		SetPageLRU(page);
 		add_page_to_lru_list(page, lruvec, page_lru(page));
 	}

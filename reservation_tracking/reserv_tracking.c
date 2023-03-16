@@ -138,6 +138,7 @@ void osa_hpage_do_scan(void)
 	// pr_alert("osa_hpage_do_scan");
 
 	int list_size = 0;
+	int num_freed = 0;
 
 	// PROBLEMA
 	/*
@@ -152,6 +153,7 @@ void osa_hpage_do_scan(void)
 	// Scanning partial populated reservations
 	spin_lock(&osa_hpage_list_lock);
 	list_for_each_entry_safe(rm_entry, aux, &osa_hpage_scan_list, osa_hpage_scan_link) {
+		list_size++;
 		timestamp = rm_entry->timestamp;
 		if (jiffies_to_msecs(jiffies) - timestamp > 5000) {
 			// pr_alert("timestamp = %u", jiffies_to_msecs(jiffies) - timestamp);
@@ -160,15 +162,17 @@ void osa_hpage_do_scan(void)
 			if (spin_trylock(next_lock)) {
 				// pr_alert("rm_release_reservation_fast rm_entry->head = %ld", page_to_pfn(get_page_from_rm((unsigned long)(rm_entry->next_node))) );
 				rm_release_reservation_fast(rm_entry);
-				list_size++;
 				spin_unlock(next_lock);
+				num_freed++;
 			}
-			if (list_size > 500)
+			if (num_freed > 1000)
 				break;
 
 		}
 	}
 	spin_unlock(&osa_hpage_list_lock);
+
+	pr_info("list_size = %d", list_size);
 
 	return;
 }

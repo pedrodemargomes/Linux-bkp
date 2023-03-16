@@ -68,6 +68,7 @@ void __page_cache_release(struct page *page)
 		spin_lock_irqsave(zone_lru_lock(zone), flags);
 		lruvec = mem_cgroup_page_lruvec(page, zone->zone_pgdat);
 		VM_BUG_ON_PAGE(!PageLRU(page), page);
+		// pr_info("ClearPageLRU page_to_pfn(page) = %ld __page_cache_release", page_to_pfn(page));
 		__ClearPageLRU(page);
 		del_page_from_lru_list(page, lruvec, page_off_lru(page));
 		spin_unlock_irqrestore(zone_lru_lock(zone), flags);
@@ -95,8 +96,10 @@ static void __put_compound_page(struct page *page)
 	 * (it's never listed to any LRU lists) and no memcg routines should
 	 * be called for hugetlb (it has a separate hugetlb_cgroup.)
 	 */
-	if (!PageHuge(page))
+	if (!PageHuge(page)) {
+		// pr_info("__page_cache_release page_to_pfn(page) = %ld", page_to_pfn(page));
 		__page_cache_release(page);
+	}
 	dtor = get_compound_page_dtor(page);
 	(*dtor)(page);
 	#ifdef DEBUG_RESERV_THP
@@ -773,6 +776,7 @@ void release_pages(struct page **pages, int nr)
 				spin_unlock_irqrestore(&locked_pgdat->lru_lock, flags);
 				locked_pgdat = NULL;
 			}
+			// pr_info("__put_compound_page page_to_pfn(page) = %ld", page_to_pfn(page));
 			__put_compound_page(page);
 			continue;
 		}
@@ -791,6 +795,7 @@ void release_pages(struct page **pages, int nr)
 
 			lruvec = mem_cgroup_page_lruvec(page, locked_pgdat);
 			VM_BUG_ON_PAGE(!PageLRU(page), page);
+			// pr_info("ClearPageLRU page_to_pfn(page) = %ld release_pages", page_to_pfn(page));
 			__ClearPageLRU(page);
 			del_page_from_lru_list(page, lruvec, page_off_lru(page));
 		}
@@ -843,8 +848,10 @@ void lru_add_page_tail(struct page *page, struct page *page_tail,
 	VM_BUG_ON(NR_CPUS != 1 &&
 		  !spin_is_locked(&lruvec_pgdat(lruvec)->lru_lock));
 
-	if (!list)
+	if (!list) {
+		// pr_info("SetPageLRU page_to_pfn(page) = %ld lru_add_page_tail", page_to_pfn(page_tail));
 		SetPageLRU(page_tail);
+	}
 
 	if (likely(PageLRU(page)))
 		list_add_tail(&page_tail->lru, &page->lru);
@@ -879,6 +886,7 @@ static void __pagevec_lru_add_fn(struct page *page, struct lruvec *lruvec,
 
 	VM_BUG_ON_PAGE(PageLRU(page), page);
 
+	// pr_info("SetPageLRU page_to_pfn(page) = %ld __pagevec_lru_add_fn", page_to_pfn(page));
 	SetPageLRU(page);
 	/*
 	 * Page becomes evictable in two ways:
@@ -909,12 +917,14 @@ static void __pagevec_lru_add_fn(struct page *page, struct lruvec *lruvec,
 	smp_mb();
 
 	if (page_evictable(page)) {
+		// pr_info("page_evictable(page) PageLRU(page) = %d page_to_pfn(page) = %ld", PageLRU(page), page_to_pfn(page));
 		lru = page_lru(page);
 		update_page_reclaim_stat(lruvec, page_is_file_cache(page),
 					 PageActive(page));
 		if (was_unevictable)
 			count_vm_event(UNEVICTABLE_PGRESCUED);
 	} else {
+		// pr_info("else page_to_pfn(page) = %ld", page_to_pfn(page));
 		lru = LRU_UNEVICTABLE;
 		ClearPageActive(page);
 		SetPageUnevictable(page);

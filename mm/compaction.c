@@ -1037,10 +1037,13 @@ static bool suitable_migration_source(struct compact_control *cc,
 
 	block_mt = get_pageblock_migratetype(page);
 
-	if (cc->migratetype == MIGRATE_MOVABLE)
+	if (cc->migratetype == MIGRATE_MOVABLE) {
+		// pr_info("cc->migratetype == MIGRATE_MOVABLE is_migrate_movable(block_mt) = %d", is_migrate_movable(block_mt));
 		return is_migrate_movable(block_mt);
-	else
+	} else {
+		// pr_info("block_mt == cc->migratetype %d", block_mt == cc->migratetype);
 		return block_mt == cc->migratetype;
+	}
 }
 
 /* Returns true if the page is within a block suitable for migration to */
@@ -1288,8 +1291,9 @@ static isolate_migrate_t isolate_migratepages(struct zone *zone,
 			continue;
 
 		/* If isolation recently failed, do not retry */
-		if (!isolation_suitable(cc, page))
+		if (!isolation_suitable(cc, page)) {
 			continue;
+		}
 
 		/*
 		 * For async compaction, also only scan in MOVABLE blocks.
@@ -1955,7 +1959,7 @@ static void proactive_compact_node(pg_data_t *pgdat)
 
 		cc.zone = zone;
 
-		// pr_alert("Compacting zone = %d", zoneid);
+		pr_info("Compacting zone = %d", zoneid);
 		compact_zone(zone, &cc);
 		// pr_alert("- - - - -");
 

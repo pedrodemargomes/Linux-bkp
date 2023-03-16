@@ -1346,6 +1346,7 @@ static bool try_to_unmap_one(struct page *page, struct vm_area_struct *vma,
 	bool ret = true;
 	unsigned long start = address, end;
 	enum ttu_flags flags = (enum ttu_flags)arg;
+	int i;
 
 	/*
 	 * When racing against e.g. zap_pte_range() on another cpu,

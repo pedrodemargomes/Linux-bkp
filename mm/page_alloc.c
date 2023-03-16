@@ -3827,7 +3827,7 @@ __alloc_pages_direct_reclaim(gfp_t gfp_mask, unsigned int order,
 		unsigned int alloc_flags, const struct alloc_context *ac,
 		unsigned long *did_some_progress)
 {
-	// pr_alert("__alloc_pages_direct_reclaim");
+	// pr_info("__alloc_pages_direct_reclaim");
 	struct page *page = NULL;
 	bool drained = false;
 
@@ -4229,6 +4229,31 @@ retry:
 	if (current->flags & PF_MEMALLOC)
 		goto nopage;
 
+	// pr_info("order = %d", order);
+	zones = NODE_DATA(numa_node_id())->node_zones;
+	// pr_alert("zone_page_state(&zones[ZONE_NORMAL], NR_FREE_PAGES) = %ld", zone_page_state(&zones[ZONE_NORMAL], NR_FREE_PAGES));
+	// pr_alert("zone_page_state(&zones[ZONE_DMA], NR_FREE_PAGES) = %ld", zone_page_state(&zones[ZONE_DMA], NR_FREE_PAGES));
+	// pr_alert("zone_page_state(&zones[ZONE_DMA32], NR_FREE_PAGES) = %ld", zone_page_state(&zones[ZONE_DMA32], NR_FREE_PAGES));
+	
+	// int num_freed = 0;
+	// spin_lock(&osa_hpage_list_lock);
+	// list_for_each_entry_safe(rm_entry, aux, &osa_hpage_scan_list, osa_hpage_scan_link) {
+	// 	next_lock = &rm_entry->lock;
+	// 	if (spin_trylock(next_lock)) {
+	// 		pr_info("rm_release_reservation_fast rm_entry->head = %ld", page_to_pfn(get_page_from_rm((unsigned long)(rm_entry->next_node))) );
+	// 		rm_release_reservation_fast(rm_entry);
+	// 		spin_unlock(next_lock);
+	// 		num_freed++;
+	// 	}
+	// 	// if (zone_page_state(&zones[ZONE_NORMAL], NR_FREE_PAGES) > high_wmark_pages((&zones[ZONE_NORMAL]))) {
+	// 	// 	// pr_alert("zone_page_state(&zones[ZONE_NORMAL], NR_FREE_PAGES) = %ld", zone_page_state(&zones[ZONE_NORMAL], NR_FREE_PAGES));
+	// 	// 	break;
+	// 	// }
+	// 	if (num_freed > 20)
+	// 		break;
+	// }
+	// spin_unlock(&osa_hpage_list_lock);
+
 	/* Try direct reclaim and then allocating */
 	page = __alloc_pages_direct_reclaim(gfp_mask, order, alloc_flags, ac,
 							&did_some_progress);
@@ -4440,25 +4465,6 @@ __alloc_pages_nodemask(gfp_t gfp_mask, unsigned int order, int preferred_nid,
 	 */
 	if (unlikely(ac.nodemask != nodemask))
 		ac.nodemask = nodemask;
-
-	// pr_alert("order = %d", order);
-	// zones = NODE_DATA(numa_node_id())->node_zones;
-	// pr_alert("zone_page_state(&zones[ZONE_NORMAL], NR_FREE_PAGES) = %ld", zone_page_state(&zones[ZONE_NORMAL], NR_FREE_PAGES));
-	// pr_alert("zone_page_state(&zones[ZONE_DMA], NR_FREE_PAGES) = %ld", zone_page_state(&zones[ZONE_DMA], NR_FREE_PAGES));
-	// pr_alert("zone_page_state(&zones[ZONE_DMA32], NR_FREE_PAGES) = %ld", zone_page_state(&zones[ZONE_DMA32], NR_FREE_PAGES));
-	// spin_lock(&osa_hpage_list_lock);
-	// list_for_each_entry_safe(rm_entry, aux, &osa_hpage_scan_list, osa_hpage_scan_link) {
-	// 	next_lock = &rm_entry->lock;
-	// 	spin_lock(next_lock);
-	// 	pr_alert("rm_release_reservation_fast rm_entry->head = %ld", page_to_pfn(get_page_from_rm((unsigned long)(rm_entry->next_node))) );
-	// 	rm_release_reservation_fast(rm_entry);
-	// 	spin_unlock(next_lock);
-	// 	if (zone_page_state(&zones[ZONE_NORMAL], NR_FREE_PAGES) > high_wmark_pages((&zones[ZONE_NORMAL]))) {
-	// 		pr_alert("zone_page_state(&zones[ZONE_NORMAL], NR_FREE_PAGES) = %ld", zone_page_state(&zones[ZONE_NORMAL], NR_FREE_PAGES));
-	// 		break;
-	// 	}
-	// }
-	// spin_unlock(&osa_hpage_list_lock);
 
 	page = __alloc_pages_slowpath(alloc_mask, order, &ac);
 

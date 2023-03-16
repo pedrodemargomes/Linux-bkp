@@ -3468,13 +3468,16 @@ static vm_fault_t do_anonymous_page(struct vm_fault *vmf)
 
 	vmf->pte = pte_offset_map_lock(vma->vm_mm, vmf->pmd, vmf->address,
 			&vmf->ptl);
-	if (!pte_none(*vmf->pte))
+	if (!pte_none(*vmf->pte)) {
+		pr_info("pte_none(*vmf->pte) page_to_pfn(page) = %ld PageLRU(page) = %d", page_to_pfn(page), PageLRU(page));
 		goto release;
+	}
 
 	ret = check_stable_address_space(vma->vm_mm);
-	if (ret)
+	if (ret) {
+		pr_info("check_stable_address_space page_to_pfn(page) = %ld", page_to_pfn(page));
 		goto release;
-
+	}
 	/* Deliver the page fault to userland, check inside PT lock */
 	// if (userfaultfd_missing(vma)) {
 	// 	pr_alert("userfaultfd_missing");
@@ -4467,6 +4470,7 @@ static vm_fault_t __handle_mm_fault(struct vm_area_struct *vma,
 	spinlock_t *next_lock;
 	struct rm_entry *rm_entry = NULL;
 	struct rm_entry *aux;
+	unsigned long hstart, hend;
 
 	pgd = pgd_offset(mm, address);
 	p4d = p4d_alloc(mm, pgd, address);
@@ -4536,41 +4540,46 @@ static vm_fault_t __handle_mm_fault(struct vm_area_struct *vma,
 	// 	}
 	// }
 
+	hstart = (vma->vm_start + ~HPAGE_PMD_MASK) & HPAGE_PMD_MASK;
+	hend = vma->vm_end & HPAGE_PMD_MASK;
 	rm_entry = get_rm_entry_from_reservation(vma, vmf.address);
-	if (rm_entry && rm_entry->mask != NULL && bitmap_weight(rm_entry->mask, 512) > 64) {
-		// pr_alert("try promote haddr = %lx", vmf.address & RESERV_MASK);
+	// if (rm_entry)
+	// 	pr_info("rm_entry->mask = %p address = %ld", rm_entry->mask, vmf.address & RESERV_MASK);
+	if (rm_entry && rm_entry->mask != NULL && !(address < hstart || address + HPAGE_PMD_SIZE > hend) && bitmap_weight(rm_entry->mask, 512) > 64) {
 		up_read(&mm->mmap_sem);
 		down_write(&mm->mmap_sem);
+		// pr_info("> rm_entry->mask = %p address = %ld", rm_entry->mask, vmf.address & RESERV_MASK);
 		rm_entry = get_rm_entry_from_reservation(vma, vmf.address);
-		if (!rm_entry || rm_entry->mask == NULL || bitmap_weight(rm_entry->mask, 512) <= 64) {
+		if (!rm_entry || rm_entry->mask == NULL || (address < hstart || address + HPAGE_PMD_SIZE > hend) || bitmap_weight(rm_entry->mask, 512) <= 64) {
 			pr_alert("goto out rm_entry");
 			goto out;
 		}
 
 		int result = hugepage_vma_revalidate(mm, vmf.address, &vma);
 		if (result) {
-			// pr_alert("goto out hugepage_vma_revalidate");
+			pr_info("goto out hugepage_vma_revalidate");
 			goto out;
 		}
 
 		lru_add_drain_all(); // drena os LRUs
 		#ifdef DEBUG_RESERV_THP
-		pr_alert("bitmap_weight > 64");
+		pr_info("bitmap_weight > 64");
 		#endif
 		
 		unsigned long haddr = vmf.address & RESERV_MASK;
 		struct page *head = get_page_from_rm((unsigned long) rm_entry->next_node);
 		if (PageTransCompound(head)) {
-			pr_alert("PageTransCompound(head) == true page_to_pfn(head) = %ld vmf.address = %lx return 0",  page_to_pfn(head), vmf.address);
-			int i = 0;
+			// pr_alert("PageTransCompound(head) == true page_to_pfn(head) = %ld vmf.address = %lx return 0",  page_to_pfn(head), vmf.address);
+			// int i = 0;
 			// #ifdef DEBUG_RESERV_THP
+			int region_offset   = (address & (~RESERV_MASK)) >> PAGE_SHIFT;
+			struct page *pageTmp = head + region_offset; 
 			// for (i = 0; i < RESERV_NR; i++) {
-				pr_alert("memory.c page = %ld PageActive(page) = %d PageLRU(page) = %d page_count(page) = %d total_mapcount(page) = %d PageTransCompound(page) = %d", page_to_pfn(head+i), PageActive(head+i), PageLRU(head+i), page_count(head+i), total_mapcount(head+i), PageTransCompound(head+i));
+				// pr_info("memory.c page = %ld PageActive(page) = %d PageLRU(page) = %d page_count(page) = %d total_mapcount(page) = %d PageTransCompound(page) = %d", page_to_pfn(pageTmp), PageActive(pageTmp), PageLRU(pageTmp), page_count(pageTmp), total_mapcount(pageTmp), PageTransCompound(pageTmp));
 			// }
 			// #endif
 			// dump_pagetable(vmf.address);
 			up_write(&mm->mmap_sem);
-			// down_read(&mm->mmap_sem);
 			return VM_FAULT_RETRY;
 		}
 		// pr_alert("rm_alloc INIT promote page haddr = %lx vma->flags = %ld page_to_pfn(head) = %ld page_count(head) = %d compound_mapcount(head) = %d total_mapcount(head) = %d PageActive(head) = %d PageTransCompound(head) = %d", haddr, vma->vm_flags, page_to_pfn(head), page_count(head), compound_mapcount(head), total_mapcount(head), PageActive(head), PageTransCompound(head));
@@ -4610,7 +4619,7 @@ static vm_fault_t __handle_mm_fault(struct vm_area_struct *vma,
 			// dump_pagetable(vmf.address);
 			osa_hpage_exit_list(rm_entry);
 			// pr_alert("osa_hpage_exit_list promote");
-			// pr_alert("rm_alloc FIM promote page retPrmtHugePage = %d page_to_pfn(head) = %ld page_count(head) = %d compound_mapcount(head) = %d total_mapcount(head) = %d PageActive(head) = %d PageTransCompound(head) = %d", retPrmtHugePage, page_to_pfn(head), page_count(head), compound_mapcount(head), total_mapcount(head), PageActive(head), PageTransCompound(head));
+			// pr_info("rm_alloc FIM promote page retPrmtHugePage = %d page_to_pfn(head) = %ld page_count(head) = %d compound_mapcount(head) = %d total_mapcount(head) = %d PageActive(head) = %d PageTransCompound(head) = %d", retPrmtHugePage, page_to_pfn(head), page_count(head), compound_mapcount(head), total_mapcount(head), PageActive(head), PageTransCompound(head));
 			// dump_pagetable(vmf.address);
 			#ifdef DEBUG_RESERV_THP
 			

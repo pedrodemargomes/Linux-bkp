@@ -114,6 +114,7 @@ static bool __munlock_isolate_lru_page(struct page *page, bool getpage)
 		lruvec = mem_cgroup_page_lruvec(page, page_pgdat(page));
 		if (getpage)
 			get_page(page);
+		// pr_info("ClearPageLRU page_to_pfn(page) = %ld __munlock_isolate_lru_page", page_to_pfn(page));
 		ClearPageLRU(page);
 		del_page_from_lru_list(page, lruvec, page_lru(page));
 		return true;

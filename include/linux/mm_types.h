@@ -194,6 +194,8 @@ struct page {
 		int units;			/* SLOB */
 	};
 
+	struct rm_entry *reservation;
+
 	/* Usage count. *DO NOT USE DIRECTLY*. See page_ref.h */
 	atomic_t _refcount;
 

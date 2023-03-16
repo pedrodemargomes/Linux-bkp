@@ -2787,7 +2787,7 @@ int promote_huge_pmd_address(struct vm_area_struct *vma, unsigned long haddr, st
 				_pte++, page++, address += PAGE_SIZE) {
 		pte_t pteval = *_pte;
 		#ifdef DEBUG_RESERV_THP
-		pr_alert("page = %ld page->_mapcount = %d", page_to_pfn(page), atomic_read(&(page)->_mapcount));
+		pr_info("page = %ld page->_mapcount = %d", page_to_pfn(page), atomic_read(&(page)->_mapcount));
 		#endif
 		// pteeval nao eh none quando deveria ser e decrementa o mapcount para -2 quando deveria manter em -1
 		// É preciso vertificar se todos os ptes estão livres, caso estajam sendo usados para mapear paginas fora dessa reserva
@@ -2846,9 +2846,10 @@ int promote_huge_pmd_address(struct vm_area_struct *vma, unsigned long haddr, st
 			spin_unlock(pte_ptl);
 		}
 		#ifdef DEBUG_RESERV_THP
-		pr_alert("page = %ld page->_mapcount = %d", page_to_pfn(page), atomic_read(&(page)->_mapcount));
+		pr_info("page = %ld page->_mapcount = %d", page_to_pfn(page), atomic_read(&(page)->_mapcount));
 		#endif
 	}
+	// pr_info("page = %ld total_mapcount(page) = %d", page_to_pfn(page), total_mapcount(page));
 	// page_ref_sub(head, HPAGE_PMD_NR - 1);
 	set_page_count(head, 2); // 2
 
@@ -2884,6 +2885,7 @@ int promote_huge_pmd_address(struct vm_area_struct *vma, unsigned long haddr, st
 out_unlock:
 	anon_vma_unlock_write(vma->anon_vma);
 out:
+	// pr_info("page = %ld total_mapcount(page) = %d", page_to_pfn(page), total_mapcount(page));
 	return ret;
 }
 
@@ -2916,16 +2918,19 @@ int promote_huge_page_address(struct vm_area_struct *vma, struct page *head, uns
 		}
 	}
 
-	// up_read(&vma->vm_mm->mmap_sem);
-	// down_write(&vma->vm_mm->mmap_sem);
-
+	// pr_info("INIT");
 	int i;
 	for (i = 0; i < 512; i++) {
-		// pr_alert("handle_pte_fault page = %ld PageActive(page) = %d PageLRU(page) = %d page_count(page) = %d total_mapcount(page) = %d PageTransCompound(page) = %d", page_to_pfn(head+i), PageActive(head+i), PageLRU(head+i), page_count(head+i), total_mapcount(head+i), PageTransCompound(head+i));
+		// pr_info("handle_pte_fault page = %ld PageActive(page) = %d PageLRU(page) = %d page_count(page) = %d total_mapcount(page) = %d PageUnevictable(page) = %d PageTransCompound(page) = %d", page_to_pfn(head+i), PageActive(head+i), PageLRU(head+i), page_count(head+i), total_mapcount(head+i), PageUnevictable(head+i), PageTransCompound(head+i));
+		if (!PageLRU(head+i) && PageActive(head+i)) {
+			pr_alert("promote_huge_page_address SetPageLRU page_to_pfn(page) = %ld", page_to_pfn(head+i));
+			// SetPageLRU(head+i);
+		}
 		// ClearPageActive(head+i);
 		__page_cache_release(head+i);
-		// pr_alert("> handle_pte_fault page = %ld PageActive(page) = %d PageLRU(page) = %d page_count(page) = %d total_mapcount(page) = %d PageTransCompound(page) = %d", page_to_pfn(head+i), PageActive(head+i), PageLRU(head+i), page_count(head+i), total_mapcount(head+i), PageTransCompound(head+i));
+		// pr_info("> handle_pte_fault page = %ld PageActive(page) = %d PageLRU(page) = %d page_count(page) = %d total_mapcount(page) = %d PageUnevictable(page) = %d PageTransCompound(page) = %d", page_to_pfn(head+i), PageActive(head+i), PageLRU(head+i), page_count(head+i), total_mapcount(head+i), PageUnevictable(head+i), PageTransCompound(head+i));
 	}
+	// pr_info("FIM");
 
 	// pr_alert("before rss_stat MM_ANONPAGES = %ld", get_mm_counter(vma->vm_mm, MM_ANONPAGES));
 	prep_compound_page(head, HPAGE_PMD_ORDER);
@@ -2933,9 +2938,6 @@ int promote_huge_page_address(struct vm_area_struct *vma, struct page *head, uns
 
 	// pr_alert("page_count(head) = %d", page_count(head));
 	// pr_alert("after rss_stat MM_ANONPAGES = %ld", get_mm_counter(vma->vm_mm, MM_ANONPAGES));
-	
-	// up_write(&vma->vm_mm->mmap_sem);
-	// down_read(&vma->vm_mm->mmap_sem);
 
 	return ret;
 }
@@ -3154,7 +3156,7 @@ static unsigned long deferred_split_count(struct shrinker *shrink,
 static unsigned long deferred_split_scan(struct shrinker *shrink,
 		struct shrink_control *sc)
 {
-	// pr_alert("deferred_split_scan");
+	pr_alert("deferred_split_scan");
 	struct pglist_data *pgdata = NODE_DATA(sc->nid);
 	unsigned long flags;
 	LIST_HEAD(list), *pos, *next;

@@ -21,7 +21,7 @@
 struct rm_node* rm_node_create() {
   struct rm_node* new = NULL;
   unsigned int i;
-  new = kmalloc(sizeof(struct rm_node), GFP_KERNEL & ~__GFP_DIRECT_RECLAIM);
+  new = kmalloc(sizeof(struct rm_node), GFP_KERNEL /*& ~__GFP_DIRECT_RECLAIM*/);
   if (new) {
     for (i = 0; i < RT_NODE_RANGE_SIZE; i++) {
       spin_lock_init(&new->items[i].lock);
@@ -46,7 +46,6 @@ extern void rm_release_reservation(struct vm_area_struct *vma, unsigned long add
   struct page *page;
   spinlock_t  *next_lock;
 
-  gfp_t gfp           = ((GFP_HIGHUSER | __GFP_NOMEMALLOC | __GFP_NOWARN) & ~__GFP_RECLAIM);
 	unsigned long haddr = address & RESERV_MASK; 
   int region_offset   = (address & (~RESERV_MASK)) >> PAGE_SHIFT;
   bool my_app         = true;//(vma->vm_mm->owner->pid == 5555);
@@ -92,6 +91,7 @@ extern void rm_release_reservation(struct vm_area_struct *vma, unsigned long add
       mod_node_page_state(page_pgdat(page), NR_MEM_RESERVATIONS_RESERVED, -unused);
     }
     // #ifdef DEBUG_RESERV_THP
+    // pr_info("rm_release PageTransCompound(page) = %d address = %lx page_to_pfn(page) = %ld page_count(page) = %d total_mapcount(page) = %d page_mapcount(page) = %d", PageTransCompound(page), address, page_to_pfn(page), page_count(page), total_mapcount(page), page_mapcount(page));
     // #endif
     if (PageTransCompound(page)) {
       // #ifdef DEBUG_RESERV_THP
@@ -255,7 +255,6 @@ int get_mask_weight_from_reservation(struct vm_area_struct *vma, unsigned long a
   struct page *page;
   spinlock_t  *next_lock;
 
-  gfp_t gfp           = ((GFP_HIGHUSER | __GFP_NOMEMALLOC | __GFP_NOWARN) & ~__GFP_RECLAIM);
 	unsigned long haddr = address & RESERV_MASK; 
   int region_offset   = (address & (~RESERV_MASK)) >> PAGE_SHIFT;
   bool my_app         = true;//(vma->vm_mm->owner->pid == 5555);
@@ -320,7 +319,6 @@ struct rm_entry *get_rm_entry_from_reservation(struct vm_area_struct *vma, unsig
   struct page *page, *head;
   spinlock_t  *next_lock;
 
-  gfp_t gfp           = ((GFP_HIGHUSER | __GFP_NOMEMALLOC | __GFP_NOWARN) & ~__GFP_RECLAIM);
 	unsigned long haddr = address & RESERV_MASK; 
   int region_offset   = (address & (~RESERV_MASK)) >> PAGE_SHIFT;
   bool my_app         = true;//(vma->vm_mm->owner->pid == 5555);
@@ -382,7 +380,7 @@ struct page *rm_alloc_from_reservation(struct vm_area_struct *vma, unsigned long
   struct page *head, *page;
   spinlock_t  *next_lock;
 
-  gfp_t gfp           = ((GFP_HIGHUSER_MOVABLE | __GFP_NOMEMALLOC | __GFP_NOWARN));
+  gfp_t gfp           = ((GFP_HIGHUSER | __GFP_NOMEMALLOC | __GFP_NOWARN) /*& ~__GFP_RECLAIM*/);
 	unsigned long haddr = address & RESERV_MASK;
   int region_offset   = (address & (~RESERV_MASK)) >> PAGE_SHIFT;
   bool my_app         = true;//(vma->vm_mm->owner->pid == 5555);
@@ -430,7 +428,6 @@ struct page *rm_alloc_from_reservation(struct vm_area_struct *vma, unsigned long
     // allocate pages 
     page = alloc_pages_vma(gfp, RESERV_ORDER, vma, haddr, numa_node_id(), false);
     if (!page) {
-      // pr_alert("alloc_pages_vma FAILED");
       goto out_unlock;
     }
     for (i = 0; i < RESERV_NR; i++) {
@@ -459,11 +456,15 @@ struct page *rm_alloc_from_reservation(struct vm_area_struct *vma, unsigned long
   
   cur_node->items[index].next_node = (void*)(leaf_value);
   get_page(page);
-  clear_user_highpage(page, address);
 
   if (PageTransCompound(page)) {
     pr_alert("rm_alloc PageTransCompound(page)");
   }
+
+  if (!test_bit(region_offset, mask))
+    clear_user_highpage(page, address);
+  else
+    pr_info("rm_alloc test_bit == true page_to_pfn(page) = %ld PageLRU(page) = %d", page_to_pfn(page), PageLRU(page));
 
   // mark the page as used
   set_bit(region_offset, mask);
@@ -507,33 +508,15 @@ void rm_destroy(struct rm_node *node, unsigned char level) { //not thread-safe
         //   mod_node_page_state(page_pgdat(page), NR_MEM_RESERVATIONS_RESERVED, -unused);
         // }
         // #ifdef DEBUG_RESERV_THP
-        pr_alert("rm_destroy PageTransCompound(page) = %d page_to_pfn(page) = %ld page_count(page) = %d total_mapcount(page) = %d", PageTransCompound(page), page_to_pfn(page), page_count(page), total_mapcount(page));
+        // pr_alert("rm_destroy PageTransCompound(page) = %d page_to_pfn(page) = %ld  PageActive(page) = %d PageLRU(page) = %d page_count(page) = %d total_mapcount(page) = %d", PageTransCompound(page), page_to_pfn(page), PageActive(page), PageLRU(page), page_count(page), total_mapcount(page));
         // #endif
         if (PageTransCompound(page)) {
-          // #ifdef DEBUG_RESERV_THP
-          // struct anon_vma_chain *vmac;
-          // struct vm_area_struct *vma;
-          // struct anon_vma *anon_vma;
-          // for (i = 0; i < RESERV_NR; i++) {
-          //   anon_vma = page_get_anon_vma(page+i);
-          //   if (!anon_vma) {
-          //     pr_alert("rm_destroy anon_vma = NULL page = %ld PageActive(page) = %d PageLRU(page) = %d page_count(page) = %d total_mapcount(page) = %d page->_mapcount = %d compound_mapcount(page) = %d PageTransCompound(page) = %d", page_to_pfn(page+i), PageActive(page+i), PageLRU(page+i), page_count(page+i), total_mapcount(page+i), atomic_read(&(page+i)->_mapcount), compound_mapcount(page+i), PageTransCompound(page+i));
-          //     continue;
-          //   }
-          //   pr_alert("rm_destroy page = %ld PageActive(page) = %d PageLRU(page) = %d page_count(page) = %d total_mapcount(page) = %d page->_mapcount = %d compound_mapcount(page) = %d PageTransCompound(page) = %d", page_to_pfn(page+i), PageActive(page+i), PageLRU(page+i), page_count(page+i), total_mapcount(page+i), atomic_read(&(page+i)->_mapcount), compound_mapcount(page+i), PageTransCompound(page+i));
-          //   anon_vma_lock_read(anon_vma);
-          //   anon_vma_interval_tree_foreach(vmac, &anon_vma->rb_root, 0, ULONG_MAX) {
-          //     vma = vmac->vma;
-          //     if (vma && vma->vm_mm)
-          //       pr_alert("vma->vm_mm->owner->pid = %d", vma->vm_mm->owner->pid);
-          //   }
-          //   anon_vma_unlock_read(anon_vma);
-          // }
-          // #endif
-          put_page(page);
-          for (i = 0; i < 3; i++) {
-            pr_alert("rm_destroy page = %ld PageActive(page) = %d PageLRU(page) = %d page_count(page) = %d total_mapcount(page) = %d page->_mapcount = %d compound_mapcount(page) = %d PageTransCompound(page) = %d", page_to_pfn(page+i), PageActive(page+i), PageLRU(page+i), page_count(page+i), total_mapcount(page+i), atomic_read(&(page+i)->_mapcount), compound_mapcount(page+i), PageTransCompound(page+i));
+          #ifdef DEBUG_RESERV_THP
+          for (i = 0; i < RESERV_NR; i++) {
+            pr_info("rm_destroy anon_vma = NULL page = %ld PageActive(page) = %d PageLRU(page) = %d page_count(page) = %d total_mapcount(page) = %d page->_mapcount = %d compound_mapcount(page) = %d PageTransCompound(page) = %d", page_to_pfn(page+i), PageActive(page+i), PageLRU(page+i), page_count(page+i), total_mapcount(page+i), atomic_read(&(page+i)->_mapcount), compound_mapcount(page+i), PageTransCompound(page+i));
           }
+          #endif
+          put_page(page);
         } else {
           for (i = 0; i < RESERV_NR; i++)
             put_page(page + i);

@@ -447,6 +447,7 @@ EXPORT_SYMBOL(unregister_shrinker);
 static unsigned long do_shrink_slab(struct shrink_control *shrinkctl,
 				    struct shrinker *shrinker, int priority)
 {
+	// pr_info("do_shrink_slab");
 	unsigned long freed = 0;
 	unsigned long long delta;
 	long total_scan;
@@ -462,8 +463,9 @@ static unsigned long do_shrink_slab(struct shrink_control *shrinkctl,
 		nid = 0;
 
 	freeable = shrinker->count_objects(shrinker, shrinkctl);
+	// pr_info("freeable = %ld", freeable);
 	if (freeable == 0 || freeable == SHRINK_EMPTY) {
-		// pr_alert("freeable empty");
+		// pr_info("freeable empty");
 		return freeable;
 	}
 	/*
@@ -672,6 +674,7 @@ static unsigned long shrink_slab(gfp_t gfp_mask, int nid,
 {
 	unsigned long ret, freed = 0;
 	struct shrinker *shrinker;
+	// pr_info("shrink_slab");
 
 	/*
 	 * The root memcg might be allocated even though memcg is disabled
@@ -1603,6 +1606,7 @@ int __isolate_lru_page(struct page *page, isolate_mode_t mode)
 		 * sure the page is not being freed elsewhere -- the
 		 * page release code relies on it.
 		 */
+		// pr_info("ClearPageLRU page_to_pfn(page) = %ld __isolate_lru_page", page_to_pfn(page));
 		ClearPageLRU(page);
 		ret = 0;
 	}
@@ -1775,6 +1779,7 @@ int isolate_lru_page(struct page *page)
 		if (PageLRU(page)) {
 			int lru = page_lru(page);
 			get_page(page);
+			// pr_info("ClearPageLRU page_to_pfn(page) = %ld isolate_lru_page", page_to_pfn(page));
 			ClearPageLRU(page);
 			del_page_from_lru_list(page, lruvec, lru);
 			ret = 0;
@@ -1846,6 +1851,7 @@ putback_inactive_pages(struct lruvec *lruvec, struct list_head *page_list)
 
 		lruvec = mem_cgroup_page_lruvec(page, pgdat);
 
+		// pr_info("SetPageLRU page_to_pfn(page) = %ld putback_inactive_pages", page_to_pfn(page));
 		SetPageLRU(page);
 		lru = page_lru(page);
 		add_page_to_lru_list(page, lruvec, lru);
@@ -1856,6 +1862,7 @@ putback_inactive_pages(struct lruvec *lruvec, struct list_head *page_list)
 			reclaim_stat->recent_rotated[file] += numpages;
 		}
 		if (put_page_testzero(page)) {
+			// pr_info("ClearPageLRU page_to_pfn(page) = %ld putback_inactive_pages", page_to_pfn(page));
 			__ClearPageLRU(page);
 			__ClearPageActive(page);
 			del_page_from_lru_list(page, lruvec, lru);
@@ -2039,6 +2046,7 @@ static unsigned move_active_pages_to_lru(struct lruvec *lruvec,
 		lruvec = mem_cgroup_page_lruvec(page, pgdat);
 
 		VM_BUG_ON_PAGE(PageLRU(page), page);
+		// pr_info("SetPageLRU page_to_pfn(page) = %ld move_active_pages_to_lru", page_to_pfn(page));
 		SetPageLRU(page);
 
 		nr_pages = hpage_nr_pages(page);
@@ -2046,6 +2054,7 @@ static unsigned move_active_pages_to_lru(struct lruvec *lruvec,
 		list_move(&page->lru, &lruvec->lists[lru]);
 
 		if (put_page_testzero(page)) {
+			// pr_info("ClearPageLRU page_to_pfn(page) = %ld move_active_pages_to_lru", page_to_pfn(page));
 			__ClearPageLRU(page);
 			__ClearPageActive(page);
 			del_page_from_lru_list(page, lruvec, lru);
@@ -2977,7 +2986,7 @@ static void shrink_zones(struct zonelist *zonelist, struct scan_control *sc)
 		if (zone->zone_pgdat == last_pgdat)
 			continue;
 		last_pgdat = zone->zone_pgdat;
-		// pr_alert("shrink_zones");
+		// pr_info("shrink_zones");
 		shrink_node(zone->zone_pgdat, sc);
 	}
 

@@ -1028,7 +1028,7 @@ static int __unmap_and_move(struct page *page, struct page *newpage,
 		 * altogether.
 		 */
 		if (current->flags & PF_MEMALLOC) {
-			pr_alert("current->flags & PF_MEMALLOC");
+			// pr_alert("current->flags & PF_MEMALLOC");
 			goto out;
 		}
 
