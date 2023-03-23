@@ -23,6 +23,7 @@
 #include <linux/freezer.h>
 #include <linux/page_owner.h>
 #include "internal.h"
+#include <linux/mem_reservations.h>
 
 #ifdef CONFIG_COMPACTION
 static inline void count_compact_event(enum vm_event_item item)
@@ -1301,6 +1302,9 @@ static isolate_migrate_t isolate_migratepages(struct zone *zone,
 		 * of work satisfies the allocation.
 		 */
 		if (!suitable_migration_source(cc, page))
+			continue;
+
+		if ((page->reservation != NULL) && (page->reservation->next_node != 0))
 			continue;
 
 		/* Perform the isolation */

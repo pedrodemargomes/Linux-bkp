@@ -50,6 +50,8 @@
 
 #include <asm/tlbflush.h>
 
+#include <linux/mem_reservations.h>
+
 #define CREATE_TRACE_POINTS
 #include <trace/events/migrate.h>
 
@@ -1422,6 +1424,9 @@ int migrate_pages(struct list_head *from, new_page_t get_new_page,
 		list_for_each_entry_safe(page, page2, from, lru) {
 retry:
 			cond_resched();
+
+			if ((page->reservation != NULL) && (page->reservation->next_node != 0))
+				pr_info("Migrating reserved page");
 
 			if (PageHuge(page))
 				rc = unmap_and_move_huge_page(get_new_page,

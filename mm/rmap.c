@@ -1682,6 +1682,7 @@ static bool try_to_unmap_one(struct page *page, struct vm_area_struct *vma,
 			dec_mm_counter(mm, mm_counter_file(page));
 		}
 discard:
+		pr_info("rm_release_reservation try_to_unmap_one");
     	rm_release_reservation(vma, address);
 		/*
 		 * No need to call mmu_notifier_invalidate_range() it has be

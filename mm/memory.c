@@ -1487,6 +1487,7 @@ static inline unsigned long zap_pmd_range(struct mmu_gather *tlb,
 				print = true;
 				// pr_alert("before __split_huge_pmd addr = %lx PageTransCompound(page) = %d page_to_pfn(page) = %lx page_count(page) = %d total_mapcount(page) = %d", addr, PageTransCompound(page), page_to_pfn(page), page_count(page), total_mapcount(page));
 				// pr_alert("before __split_huge_pmd addr = %lx PageTransCompound(page) = %d page_to_pfn(page) = %lx page_count(page) = %d total_mapcount(page) = %d", addr, PageTransCompound(page+1), page_to_pfn(page+1), page_count(page+1), total_mapcount(page+1));
+				pr_info("rm_release_reservation zap_pmd_range");
 				rm_release_reservation(vma, addr);
 				__split_huge_pmd(vma, pmd, addr, false, NULL);
 				// pr_alert("__split_huge_pmd addr = %lx PageTransCompound(page) = %d page_to_pfn(page) = %lx page_count(page) = %d total_mapcount(page) = %d", addr, PageTransCompound(page), page_to_pfn(page), page_count(page), total_mapcount(page));
@@ -2670,6 +2671,7 @@ static vm_fault_t wp_page_copy(struct vm_fault *vmf)
 		if (!new_page)
 			goto oom;
 	} else {
+		pr_info("rm_release_reservation wp_page_copy");
     	rm_release_reservation(vma, vmf->address);
 		new_page = alloc_page_vma(GFP_HIGHUSER_MOVABLE, vma,
 				vmf->address);
@@ -4454,6 +4456,7 @@ struct page *last_head = NULL;
 static vm_fault_t __handle_mm_fault(struct vm_area_struct *vma,
 		unsigned long address, unsigned int flags)
 {
+	// pr_info("1 __handle_mm_fault vma->vm_start = %lx vma->vm_end = %lx address = %lx", vma->vm_start, vma->vm_end, address);
 	struct vm_fault vmf = {
 		.vma = vma,
 		.address = address & PAGE_MASK,
@@ -4482,6 +4485,9 @@ static vm_fault_t __handle_mm_fault(struct vm_area_struct *vma,
 		pr_alert("!vmf.pud");
 		return VM_FAULT_OOM;
 	}
+
+	// pr_info("2 __handle_mm_fault vma->vm_start = %lx vma->vm_end = %lx address = %lx", vma->vm_start, vma->vm_end, address);
+
 	// if (pud_none(*vmf.pud) && __transparent_hugepage_enabled(vma)) {
 	// 	ret = create_huge_pud(&vmf);
 	// 	if (!(ret & VM_FAULT_FALLBACK))
@@ -4540,18 +4546,27 @@ static vm_fault_t __handle_mm_fault(struct vm_area_struct *vma,
 	// 	}
 	// }
 
+	unsigned long *mask = NULL;
 	hstart = (vma->vm_start + ~HPAGE_PMD_MASK) & HPAGE_PMD_MASK;
 	hend = vma->vm_end & HPAGE_PMD_MASK;
-	rm_entry = get_rm_entry_from_reservation(vma, vmf.address);
-	// if (rm_entry)
-	// 	pr_info("rm_entry->mask = %p address = %ld", rm_entry->mask, vmf.address & RESERV_MASK);
-	if (rm_entry && rm_entry->mask != NULL && !(address < hstart || address + HPAGE_PMD_SIZE > hend) && bitmap_weight(rm_entry->mask, 512) > 64) {
+	rm_entry = get_rm_entry_from_reservation(vma, vmf.address, &mask);
+	if (rm_entry) {
+		if (mask)
+			pr_info("rm_entry->next_node = %p haddr = %lx mask = %d", rm_entry->next_node, vmf.address & RESERV_MASK, bitmap_weight(mask, 512));
+		else
+			pr_info("rm_entry->next_node = %p haddr = %lx mask = NULL", rm_entry->next_node, vmf.address & RESERV_MASK);
+	}
+
+	// pr_info("3 __handle_mm_fault vma->vm_start = %lx vma->vm_end = %lx address = %lx", vma->vm_start, vma->vm_end, address);
+	// pr_info("rm_entry->mask = %p address = %ld", rm_entry->mask, vmf.address & RESERV_MASK);
+	if (!(address < hstart || address + HPAGE_PMD_SIZE > hend) && rm_entry && mask != NULL && bitmap_weight(mask, 512) > 64) {
 		up_read(&mm->mmap_sem);
 		down_write(&mm->mmap_sem);
 		// pr_info("> rm_entry->mask = %p address = %ld", rm_entry->mask, vmf.address & RESERV_MASK);
-		rm_entry = get_rm_entry_from_reservation(vma, vmf.address);
-		if (!rm_entry || rm_entry->mask == NULL || (address < hstart || address + HPAGE_PMD_SIZE > hend) || bitmap_weight(rm_entry->mask, 512) <= 64) {
-			pr_alert("goto out rm_entry");
+		mask = NULL;
+		rm_entry = get_rm_entry_from_reservation(vma, vmf.address, &mask);
+		if (!rm_entry || (address < hstart || address + HPAGE_PMD_SIZE > hend) || mask == NULL || bitmap_weight(mask, 512) <= 64) {
+			pr_info("goto out rm_entry");
 			goto out;
 		}
 
@@ -4568,6 +4583,7 @@ static vm_fault_t __handle_mm_fault(struct vm_area_struct *vma,
 		
 		unsigned long haddr = vmf.address & RESERV_MASK;
 		struct page *head = get_page_from_rm((unsigned long) rm_entry->next_node);
+		pr_info("page_to_pfn(head) = %lx rm_entry->next_node = %p haddr = %lx mask = %d", page_to_pfn(head),  rm_entry->next_node, haddr, bitmap_weight(mask, 512));
 		if (PageTransCompound(head)) {
 			// pr_alert("PageTransCompound(head) == true page_to_pfn(head) = %ld vmf.address = %lx return 0",  page_to_pfn(head), vmf.address);
 			// int i = 0;
@@ -4617,7 +4633,7 @@ static vm_fault_t __handle_mm_fault(struct vm_area_struct *vma,
 
 			// pr_alert("promotion SUCCESS page_to_pfn(head) = %ld", page_to_pfn(head));
 			// dump_pagetable(vmf.address);
-			osa_hpage_exit_list(rm_entry);
+			// osa_hpage_exit_list(rm_entry);
 			// pr_alert("osa_hpage_exit_list promote");
 			// pr_info("rm_alloc FIM promote page retPrmtHugePage = %d page_to_pfn(head) = %ld page_count(head) = %d compound_mapcount(head) = %d total_mapcount(head) = %d PageActive(head) = %d PageTransCompound(head) = %d", retPrmtHugePage, page_to_pfn(head), page_count(head), compound_mapcount(head), total_mapcount(head), PageActive(head), PageTransCompound(head));
 			// dump_pagetable(vmf.address);
@@ -4670,6 +4686,7 @@ out:
 vm_fault_t handle_mm_fault(struct vm_area_struct *vma, unsigned long address,
 		unsigned int flags)
 {
+	// pr_info("1 handle_mm_fault vma->vm_start = %lx vma->vm_end = %lx address = %lx", vma->vm_start, vma->vm_end, address);
 	vm_fault_t ret;
 
 	__set_current_state(TASK_RUNNING);
@@ -4685,6 +4702,7 @@ vm_fault_t handle_mm_fault(struct vm_area_struct *vma, unsigned long address,
 					    flags & FAULT_FLAG_REMOTE))
 		return VM_FAULT_SIGSEGV;
 
+	// pr_info("2 handle_mm_fault vma->vm_start = %lx vma->vm_end = %lx address = %lx", vma->vm_start, vma->vm_end, address);
 	/*
 	 * Enable the memcg OOM handling for faults triggered in user
 	 * space.  Kernel faults are handled more gracefully.
@@ -4694,9 +4712,10 @@ vm_fault_t handle_mm_fault(struct vm_area_struct *vma, unsigned long address,
 
 	if (unlikely(is_vm_hugetlb_page(vma)))
 		ret = hugetlb_fault(vma->vm_mm, vma, address, flags);
-	else
+	else {
+		// pr_info("3 handle_mm_fault vma->vm_start = %lx vma->vm_end = %lx address = %lx", vma->vm_start, vma->vm_end, address);
 		ret = __handle_mm_fault(vma, address, flags);
-
+	}
 	if (flags & FAULT_FLAG_USER) {
 		mem_cgroup_exit_user_fault();
 		/*

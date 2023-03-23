@@ -2696,6 +2696,7 @@ static bool pgdat_memcg_congested(pg_data_t *pgdat, struct mem_cgroup *memcg)
 
 static bool shrink_node(pg_data_t *pgdat, struct scan_control *sc)
 {
+	// pr_info("shrink_node");
 	struct reclaim_state *reclaim_state = current->reclaim_state;
 	unsigned long nr_reclaimed, nr_scanned;
 	bool reclaimable = false;
@@ -3228,7 +3229,7 @@ out:
 unsigned long try_to_free_pages(struct zonelist *zonelist, int order,
 				gfp_t gfp_mask, nodemask_t *nodemask)
 {
-	// pr_alert("try_to_free_pages");
+	// pr_info("try_to_free_pages");
 	unsigned long nr_reclaimed;
 	struct scan_control sc = {
 		.nr_to_reclaim = SWAP_CLUSTER_MAX,
@@ -4120,6 +4121,7 @@ static int __node_reclaim(struct pglist_data *pgdat, gfp_t gfp_mask, unsigned in
 
 int node_reclaim(struct pglist_data *pgdat, gfp_t gfp_mask, unsigned int order)
 {
+	// pr_info("node_reclaim");
 	int ret;
 
 	/*

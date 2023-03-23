@@ -1214,6 +1214,7 @@ static void __meminit __init_single_page(struct page *page, unsigned long pfn,
 	page_cpupid_reset_last(page);
 
 	INIT_LIST_HEAD(&page->lru);
+	page->reservation = NULL;
 #ifdef WANT_PAGE_VIRTUAL
 	/* The shift won't overflow because ZONE_NORMAL is below 4G. */
 	if (!is_highmem_idx(zone))
@@ -3298,8 +3299,10 @@ get_page_from_freelist(gfp_t gfp_mask, unsigned int order, int alloc_flags,
 
 		if (cpusets_enabled() &&
 			(alloc_flags & ALLOC_CPUSET) &&
-			!__cpuset_zone_allowed(zone, gfp_mask))
+			!__cpuset_zone_allowed(zone, gfp_mask)) {
+				pr_info("get_page_from_freelist 1");
 				continue;
+			}
 		/*
 		 * When allocating a page cache page for writing, we
 		 * want to get it from a node that is within its dirty
@@ -3795,7 +3798,7 @@ static int
 __perform_reclaim(gfp_t gfp_mask, unsigned int order,
 					const struct alloc_context *ac)
 {
-	// pr_alert("__perform_reclaim");
+	// pr_info("__perform_reclaim");
 	struct reclaim_state reclaim_state;
 	int progress;
 	unsigned int noreclaim_flag;
@@ -3827,7 +3830,7 @@ __alloc_pages_direct_reclaim(gfp_t gfp_mask, unsigned int order,
 		unsigned int alloc_flags, const struct alloc_context *ac,
 		unsigned long *did_some_progress)
 {
-	// pr_info("__alloc_pages_direct_reclaim");
+	pr_info("__alloc_pages_direct_reclaim");
 	struct page *page = NULL;
 	bool drained = false;
 
@@ -4089,7 +4092,6 @@ __alloc_pages_slowpath(gfp_t gfp_mask, unsigned int order,
 						struct alloc_context *ac)
 {
 	bool can_direct_reclaim = gfp_mask & __GFP_DIRECT_RECLAIM;
-	// pr_alert("can_direct_reclaim = %d order = %d ac = %p", can_direct_reclaim, order, ac);
 	const bool costly_order = order > PAGE_ALLOC_COSTLY_ORDER;
 	struct page *page = NULL;
 	unsigned int alloc_flags;
@@ -4149,6 +4151,8 @@ retry_cpuset:
 	if (page)
 		goto got_pg;
 
+	// pr_info("can_direct_reclaim = %d costly_order = %d order = %d gfp_mask & __GFP_KSWAPD_RECLAIM = %d current->flags & PF_MEMALLOC = %d", can_direct_reclaim, costly_order, order, gfp_mask & __GFP_KSWAPD_RECLAIM, current->flags & PF_MEMALLOC);
+
 	/*
 	 * For costly allocations, try direct compaction first, as it's likely
 	 * that we have enough base pages and don't need to reclaim. For non-
@@ -4162,6 +4166,8 @@ retry_cpuset:
 			(costly_order ||
 			   (order > 0 && ac->migratetype != MIGRATE_MOVABLE))
 			&& !gfp_pfmemalloc_allowed(gfp_mask)) {
+
+		pr_info("__alloc_pages_direct_compact if");
 		page = __alloc_pages_direct_compact(gfp_mask, order,
 						alloc_flags, ac,
 						INIT_COMPACT_PRIORITY,
@@ -4216,7 +4222,6 @@ retry:
 
 	/* Attempt with potentially adjusted zonelist and alloc_flags */
 	page = get_page_from_freelist(gfp_mask, order, alloc_flags, ac);
-	// pr_alert("2 get_page_from_freelist page = %p ac = %p", page, ac);
 	if (page)
 		goto got_pg;
 
@@ -4254,13 +4259,15 @@ retry:
 	// }
 	// spin_unlock(&osa_hpage_list_lock);
 
+	pr_info("__alloc_pages_direct_reclaim");
 	/* Try direct reclaim and then allocating */
 	page = __alloc_pages_direct_reclaim(gfp_mask, order, alloc_flags, ac,
 							&did_some_progress);
 	if (page)
 		goto got_pg;
 
-	/* Try direct compaction and then allocating */
+	pr_info("__alloc_pages_direct_compact");
+	// /* Try direct compaction and then allocating */
 	page = __alloc_pages_direct_compact(gfp_mask, order, alloc_flags, ac,
 					compact_priority, &compact_result);
 	if (page)

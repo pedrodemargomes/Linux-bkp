@@ -1783,6 +1783,7 @@ int zap_huge_pmd(struct mmu_gather *tlb, struct vm_area_struct *vma,
 	if (!ptl)
 		return 0;
 
+	pr_info("rm_release_reservation zap_huge_pmd");
 	rm_release_reservation(vma, addr);
 	/*
 	 * For architectures like ppc64 we look at deposited pgtable
@@ -3189,8 +3190,8 @@ static unsigned long deferred_split_scan(struct shrinker *shrink,
 			// pr_alert("goto next");
 			goto next;
 		}
+		pr_info("split_huge_page page_to_pfn(page) = %lx", page_to_pfn(page));
 		/* split_huge_page() removes page from list on success */
-		// pr_alert("split_huge_page(page)");
 		if (!split_huge_page(page)) {
 			// pr_alert("split++");
 			split++;

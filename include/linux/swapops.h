@@ -212,6 +212,8 @@ static inline struct page *migration_entry_to_page(swp_entry_t entry)
 	 * Any use of migration entries may only occur while the
 	 * corresponding page is locked
 	 */
+	if (!PageLocked(compound_head(p)))
+		pr_info("!PageLocked(compound_head(p)) page_to_pfn(p) = %lx", page_to_pfn(compound_head(p)));
 	BUG_ON(!PageLocked(compound_head(p)));
 	return p;
 }

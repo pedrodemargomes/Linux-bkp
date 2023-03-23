@@ -21,12 +21,14 @@
 struct rm_node* rm_node_create() {
   struct rm_node* new = NULL;
   unsigned int i;
-  new = kmalloc(sizeof(struct rm_node), GFP_KERNEL /*& ~__GFP_DIRECT_RECLAIM*/);
+  new = kmalloc(sizeof(struct rm_node), GFP_KERNEL);
   if (new) {
     for (i = 0; i < RT_NODE_RANGE_SIZE; i++) {
       spin_lock_init(&new->items[i].lock);
       new->items[i].next_node = NULL;
     }
+  } else {
+    pr_alert("rm_node_create failed kmalloc");
   }
   return new;
 }
@@ -91,7 +93,7 @@ extern void rm_release_reservation(struct vm_area_struct *vma, unsigned long add
       mod_node_page_state(page_pgdat(page), NR_MEM_RESERVATIONS_RESERVED, -unused);
     }
     // #ifdef DEBUG_RESERV_THP
-    // pr_info("rm_release PageTransCompound(page) = %d address = %lx page_to_pfn(page) = %ld page_count(page) = %d total_mapcount(page) = %d page_mapcount(page) = %d", PageTransCompound(page), address, page_to_pfn(page), page_count(page), total_mapcount(page), page_mapcount(page));
+    pr_info("rm_release PageTransCompound(page) = %d address = %lx page_to_pfn(page) = %lx page_count(page) = %d total_mapcount(page) = %d page_mapcount(page) = %d", PageTransCompound(page), address, page_to_pfn(page), page_count(page), total_mapcount(page), page_mapcount(page));
     // #endif
     if (PageTransCompound(page)) {
       // #ifdef DEBUG_RESERV_THP
@@ -154,7 +156,7 @@ extern void rm_release_reservation(struct vm_area_struct *vma, unsigned long add
       }
     }
     // pr_alert("osa_hpage_exit_list release");
-    osa_hpage_exit_list(&cur_node->items[index]);
+    // osa_hpage_exit_list(&cur_node->items[index]);
     cur_node->items[index].next_node = 0; 
   }
   spin_unlock(next_lock);
@@ -180,49 +182,49 @@ extern void rm_release_reservation_fast(struct rm_entry *rm_entry) {
     if (unused) {
       mod_node_page_state(page_pgdat(page), NR_MEM_RESERVATIONS_RESERVED, -unused);
     }
-    #ifdef DEBUG_RESERV_THP
-    pr_alert("rm_release PageTransCompound(page) = %d page_to_pfn(page) = %ld PageLRU(page) = %d page_count(page) = %d total_mapcount(page) = %d page_zonenum(page) = %d", PageTransCompound(page), page_to_pfn(page), PageLRU(page), page_count(page), total_mapcount(page), page_zonenum(page));
-    #endif
+    // #ifdef DEBUG_RESERV_THP
+    // pr_alert("rm_release PageTransCompound(page) = %d page_to_pfn(page) = %ld PageLRU(page) = %d page_count(page) = %d total_mapcount(page) = %d page_zonenum(page) = %d", PageTransCompound(page), page_to_pfn(page), PageLRU(page), page_count(page), total_mapcount(page), page_zonenum(page));
+    // #endif
     if (PageTransCompound(page)) {
-      #ifdef DEBUG_RESERV_THP
-      struct anon_vma_chain *vmac;
-      struct vm_area_struct *vma;
-      struct anon_vma *anon_vma;
-      for (i = 0; i < RESERV_NR; i++) {
-        anon_vma = page_get_anon_vma(page+i);
-        if (!anon_vma) {
-          pr_alert("rm_release anon_vma = NULL page = %ld PageActive(page) = %d PageLRU(page) = %d page_count(page) = %d total_mapcount(page) = %d page->_mapcount = %d PageTransCompound(page) = %d", page_to_pfn(page+i), PageActive(page+i), PageLRU(page+i), page_count(page+i), total_mapcount(page+i), atomic_read(&(page+i)->_mapcount), PageTransCompound(page+i));
-          continue;
-        }
-        pr_alert("rm_release page = %ld PageActive(page) = %d PageLRU(page) = %d page_count(page) = %d total_mapcount(page) = %d page->_mapcount = %d PageTransCompound(page) = %d", page_to_pfn(page+i), PageActive(page+i), PageLRU(page+i), page_count(page+i), total_mapcount(page+i), atomic_read(&(page+i)->_mapcount), PageTransCompound(page+i));
-        anon_vma_lock_read(anon_vma);
-        anon_vma_interval_tree_foreach(vmac, &anon_vma->rb_root, 0, ULONG_MAX) {
-          vma = vmac->vma;
-          if (vma && vma->vm_mm)
-            pr_alert("vma->vm_mm->owner->pid = %d", vma->vm_mm->owner->pid);
-        }
-        anon_vma_unlock_read(anon_vma);
-      }
-      pr_alert("put_page");
-      #endif
+      // #ifdef DEBUG_RESERV_THP
+      // struct anon_vma_chain *vmac;
+      // struct vm_area_struct *vma;
+      // struct anon_vma *anon_vma;
+      // for (i = 0; i < RESERV_NR; i++) {
+      //   anon_vma = page_get_anon_vma(page+i);
+      //   if (!anon_vma) {
+      //     pr_alert("rm_release anon_vma = NULL page = %ld PageActive(page) = %d PageLRU(page) = %d page_count(page) = %d total_mapcount(page) = %d page->_mapcount = %d PageTransCompound(page) = %d", page_to_pfn(page+i), PageActive(page+i), PageLRU(page+i), page_count(page+i), total_mapcount(page+i), atomic_read(&(page+i)->_mapcount), PageTransCompound(page+i));
+      //     continue;
+      //   }
+      //   pr_alert("rm_release page = %ld PageActive(page) = %d PageLRU(page) = %d page_count(page) = %d total_mapcount(page) = %d page->_mapcount = %d PageTransCompound(page) = %d", page_to_pfn(page+i), PageActive(page+i), PageLRU(page+i), page_count(page+i), total_mapcount(page+i), atomic_read(&(page+i)->_mapcount), PageTransCompound(page+i));
+      //   anon_vma_lock_read(anon_vma);
+      //   anon_vma_interval_tree_foreach(vmac, &anon_vma->rb_root, 0, ULONG_MAX) {
+      //     vma = vmac->vma;
+      //     if (vma && vma->vm_mm)
+      //       pr_alert("vma->vm_mm->owner->pid = %d", vma->vm_mm->owner->pid);
+      //   }
+      //   anon_vma_unlock_read(anon_vma);
+      // }
+      // pr_alert("put_page");
+      // #endif
       put_page(page);
-      #ifdef DEBUG_RESERV_THP
-      for (i = 0; i < RESERV_NR; i++) {
-        anon_vma = page_get_anon_vma(page+i);
-        if (!anon_vma) {
-          pr_alert("rm_release anon_vma = NULL page = %ld PageActive(page) = %d PageLRU(page) = %d page_count(page) = %d total_mapcount(page) = %d page->_mapcount = %d PageTransCompound(page) = %d", page_to_pfn(page+i), PageActive(page+i), PageLRU(page+i), page_count(page+i), total_mapcount(page+i), atomic_read(&(page+i)->_mapcount), PageTransCompound(page+i));
-          continue;
-        }
-        pr_alert("rm_release page = %ld PageActive(page) = %d PageLRU(page) = %d page_count(page) = %d total_mapcount(page) = %d page->_mapcount = %d PageTransCompound(page) = %d", page_to_pfn(page+i), PageActive(page+i), PageLRU(page+i), page_count(page+i), total_mapcount(page+i), atomic_read(&(page+i)->_mapcount), PageTransCompound(page+i));
-        anon_vma_lock_read(anon_vma);
-        anon_vma_interval_tree_foreach(vmac, &anon_vma->rb_root, 0, ULONG_MAX) {
-          vma = vmac->vma;
-          if (vma && vma->vm_mm)
-            pr_alert("vma->vm_mm->owner->pid = %d", vma->vm_mm->owner->pid);
-        }
-        anon_vma_unlock_read(anon_vma);
-      }
-      #endif
+      // #ifdef DEBUG_RESERV_THP
+      // for (i = 0; i < RESERV_NR; i++) {
+      //   anon_vma = page_get_anon_vma(page+i);
+      //   if (!anon_vma) {
+      //     pr_alert("rm_release anon_vma = NULL page = %ld PageActive(page) = %d PageLRU(page) = %d page_count(page) = %d total_mapcount(page) = %d page->_mapcount = %d PageTransCompound(page) = %d", page_to_pfn(page+i), PageActive(page+i), PageLRU(page+i), page_count(page+i), total_mapcount(page+i), atomic_read(&(page+i)->_mapcount), PageTransCompound(page+i));
+      //     continue;
+      //   }
+      //   pr_alert("rm_release page = %ld PageActive(page) = %d PageLRU(page) = %d page_count(page) = %d total_mapcount(page) = %d page->_mapcount = %d PageTransCompound(page) = %d", page_to_pfn(page+i), PageActive(page+i), PageLRU(page+i), page_count(page+i), total_mapcount(page+i), atomic_read(&(page+i)->_mapcount), PageTransCompound(page+i));
+      //   anon_vma_lock_read(anon_vma);
+      //   anon_vma_interval_tree_foreach(vmac, &anon_vma->rb_root, 0, ULONG_MAX) {
+      //     vma = vmac->vma;
+      //     if (vma && vma->vm_mm)
+      //       pr_alert("vma->vm_mm->owner->pid = %d", vma->vm_mm->owner->pid);
+      //   }
+      //   anon_vma_unlock_read(anon_vma);
+      // }
+      // #endif
     } else {
       for (i = 0; i < RESERV_NR; i++) {
         put_page(page+i);
@@ -302,7 +304,7 @@ int get_mask_weight_from_reservation(struct vm_area_struct *vma, unsigned long a
 }
 
 
-struct rm_entry *get_rm_entry_from_reservation(struct vm_area_struct *vma, unsigned long address) {
+struct rm_entry *get_rm_entry_from_reservation(struct vm_area_struct *vma, unsigned long address, unsigned long **_mask) {
   int retPrmtHugePage;
 
   unsigned char level;
@@ -359,6 +361,7 @@ struct rm_entry *get_rm_entry_from_reservation(struct vm_area_struct *vma, unsig
   if (entry->next_node == 0) {
     bitmap_zero(entry->mask, 512);
   }
+  *_mask = entry->mask;
   spin_unlock(next_lock);
   return entry;
 }
@@ -380,7 +383,7 @@ struct page *rm_alloc_from_reservation(struct vm_area_struct *vma, unsigned long
   struct page *head, *page;
   spinlock_t  *next_lock;
 
-  gfp_t gfp           = ((GFP_HIGHUSER | __GFP_NOMEMALLOC | __GFP_NOWARN) /*& ~__GFP_RECLAIM*/);
+  gfp_t gfp           = ((GFP_HIGHUSER | __GFP_NOMEMALLOC | __GFP_NOWARN) & ~__GFP_DIRECT_RECLAIM/*~__GFP_RECLAIM*/);
 	unsigned long haddr = address & RESERV_MASK;
   int region_offset   = (address & (~RESERV_MASK)) >> PAGE_SHIFT;
   bool my_app         = true;//(vma->vm_mm->owner->pid == 5555);
@@ -432,6 +435,7 @@ struct page *rm_alloc_from_reservation(struct vm_area_struct *vma, unsigned long
     }
     for (i = 0; i < RESERV_NR; i++) {
       set_page_count(page + i, 1);
+      (page+i)->reservation = &cur_node->items[index];
     }
     // clear_huge_page(page, haddr, HPAGE_PMD_NR);
     // create a leaf node
@@ -443,7 +447,7 @@ struct page *rm_alloc_from_reservation(struct vm_area_struct *vma, unsigned long
     INIT_LIST_HEAD(&cur_node->items[index].osa_hpage_scan_link);
     cur_node->items[index].timestamp = jiffies_to_msecs(jiffies);
     // pr_alert("osa_hpage_enter_list");
-    osa_hpage_enter_list(&cur_node->items[index]);
+    // osa_hpage_enter_list(&cur_node->items[index]);
     // wake_up_interruptible(&osa_hpage_scand_wait);
   } else {
     mod_node_page_state(page_pgdat(page), NR_MEM_RESERVATIONS_RESERVED, -1);
@@ -500,15 +504,18 @@ void rm_destroy(struct rm_node *node, unsigned char level) { //not thread-safe
         // spin_lock(next_lock);
         // VM_BUG_ON(!(unsigned long)(cur_node->items[index].next_node));
         // pr_alert("osa_hpage_exit_list destroy");
-        osa_hpage_exit_list(&cur_node->items[index]);
+        // osa_hpage_exit_list(&cur_node->items[index]);
         page = get_page_from_rm(leaf_value);
+        for (i = 0; i < RESERV_NR; i++) {
+          (page+i)->reservation = NULL;
+        }
 
         // unused = 512 - bitmap_weight(mask, 512);
         // if (unused) {
         //   mod_node_page_state(page_pgdat(page), NR_MEM_RESERVATIONS_RESERVED, -unused);
         // }
         // #ifdef DEBUG_RESERV_THP
-        // pr_alert("rm_destroy PageTransCompound(page) = %d page_to_pfn(page) = %ld  PageActive(page) = %d PageLRU(page) = %d page_count(page) = %d total_mapcount(page) = %d", PageTransCompound(page), page_to_pfn(page), PageActive(page), PageLRU(page), page_count(page), total_mapcount(page));
+        pr_info("rm_destroy PageTransCompound(page) = %d page_to_pfn(page) = %lx  PageActive(page) = %d PageLRU(page) = %d page_count(page) = %d total_mapcount(page) = %d", PageTransCompound(page), page_to_pfn(page), PageActive(page), PageLRU(page), page_count(page), total_mapcount(page));
         // #endif
         if (PageTransCompound(page)) {
           #ifdef DEBUG_RESERV_THP
