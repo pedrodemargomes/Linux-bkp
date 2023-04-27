@@ -645,6 +645,12 @@ void __mmdrop(struct mm_struct *mm)
 	mmu_notifier_mm_destroy(mm);
 	check_mm(mm);
 	put_user_ns(mm->user_ns);
+	if (mm->memory_reservations) {
+		// pr_alert("rm_destroy BEGIN pid = %ld", (long int) mm->memory_reservations->pid);
+		rm_destroy(mm->memory_reservations, 1);
+		// pr_alert("rm_destroy END pid = %ld", (long int) mm->memory_reservations->pid);
+		mm->memory_reservations = NULL;
+	}
 	free_mm(mm);
 }
 EXPORT_SYMBOL_GPL(__mmdrop);
@@ -1031,12 +1037,6 @@ static inline void __mmput(struct mm_struct *mm)
 	exit_aio(mm);
 	ksm_exit(mm);
 	khugepaged_exit(mm); /* must run before exit_mmap */
-	if (mm->memory_reservations) {
-		// pr_alert("rm_destroy BEGIN pid = %ld", (long int) mm->memory_reservations->pid);
-		rm_destroy(mm->memory_reservations, 1);
-		// pr_alert("rm_destroy END pid = %ld", (long int) mm->memory_reservations->pid);
-		mm->memory_reservations = NULL;
-	}
 	exit_mmap(mm);
 	mm_put_huge_zero_page(mm);
 	set_mm_exe_file(mm, NULL);

@@ -1304,9 +1304,6 @@ static isolate_migrate_t isolate_migratepages(struct zone *zone,
 		if (!suitable_migration_source(cc, page))
 			continue;
 
-		if ((page->reservation != NULL) && (page->reservation->next_node != 0))
-			continue;
-
 		/* Perform the isolation */
 		low_pfn = isolate_migratepages_block(cc, low_pfn,
 						block_end_pfn, isolate_mode);
@@ -1963,7 +1960,7 @@ static void proactive_compact_node(pg_data_t *pgdat)
 
 		cc.zone = zone;
 
-		pr_info("Compacting zone = %d", zoneid);
+		// pr_info("Compacting zone = %d", zoneid);
 		compact_zone(zone, &cc);
 		// pr_alert("- - - - -");
 

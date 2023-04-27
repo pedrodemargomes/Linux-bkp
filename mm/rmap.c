@@ -1366,8 +1366,6 @@ static bool try_to_unmap_one(struct page *page, struct vm_area_struct *vma,
 		return true;
 
 	if (flags & TTU_SPLIT_HUGE_PMD) {
-		// pr_alert("try_to_unmap_one split_huge_pmd_address PageTransCompound(page) = %d page_to_pfn(page) = %ld address = %lx", PageTransCompound(page), page_to_pfn(page), address);
-
 		split_huge_pmd_address(vma, address,
 				flags & TTU_SPLIT_FREEZE, page);
 	}
@@ -1682,8 +1680,10 @@ static bool try_to_unmap_one(struct page *page, struct vm_area_struct *vma,
 			dec_mm_counter(mm, mm_counter_file(page));
 		}
 discard:
-		pr_info("rm_release_reservation try_to_unmap_one");
-    	rm_release_reservation(vma, address);
+		if(page->reservation) {
+			// pr_info("page->reservation->next_node = %p page_to_pfn(get_page_from_rm((unsigned long)page->reservation->next_node) = %lx", page->reservation->next_node, page_to_pfn(get_page_from_rm((unsigned long)page->reservation->next_node)));
+    		rm_release_reservation(vma, address);
+		}
 		/*
 		 * No need to call mmu_notifier_invalidate_range() it has be
 		 * done above for all cases requiring it to happen under page

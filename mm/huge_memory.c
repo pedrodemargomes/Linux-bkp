@@ -1783,7 +1783,6 @@ int zap_huge_pmd(struct mmu_gather *tlb, struct vm_area_struct *vma,
 	if (!ptl)
 		return 0;
 
-	pr_info("rm_release_reservation zap_huge_pmd");
 	rm_release_reservation(vma, addr);
 	/*
 	 * For architectures like ppc64 we look at deposited pgtable
@@ -2351,7 +2350,7 @@ repeat:
 			 */
 			if (PageAnon(page)) {
 				if (unlikely(!trylock_page(page))) {
-					pr_alert("!trylock_page");
+					// pr_alert("!trylock_page");
 					get_page(page);
 					_pmd = *pmd;
 					spin_unlock(ptl);
@@ -2471,6 +2470,7 @@ static void unmap_page(struct page *page)
 	if (PageAnon(page))
 		ttu_flags |= TTU_SPLIT_FREEZE;
 
+	// pr_info("unmap_page page_to_pfn(page) = %lx", page_to_pfn(page));
 	try_to_unmap(page, ttu_flags);
 
 	VM_WARN_ON_ONCE_PAGE(page_mapped(page), page);
@@ -2719,7 +2719,7 @@ int promote_huge_pmd_address(struct vm_area_struct *vma, unsigned long haddr, st
 	pmd = mm_find_pmd(mm, haddr);
 	if (!pmd || pmd_trans_huge(*pmd)) {
 		// #ifdef DEBUG_RESERV_THP
-		pr_alert("!pmd || pmd_trans_huge(*pmd)");
+		// pr_alert("!pmd || pmd_trans_huge(*pmd)");
 		// #endif
 		goto out_unlock;
 	}
@@ -2733,7 +2733,7 @@ int promote_huge_pmd_address(struct vm_area_struct *vma, unsigned long haddr, st
 	// head = page = vm_normal_page(vma, haddr, *pte);
 	if (!page || !PageTransCompound(page)) {
 		// #ifdef DEBUG_RESERV_THP
-		pr_alert("!page || !PageTransCompound(page) page = %ld PageTransCompound(page) = %d", page_to_pfn(page), PageTransCompound(page));
+		// pr_alert("!page || !PageTransCompound(page) page = %ld PageTransCompound(page) = %d", page_to_pfn(page), PageTransCompound(page));
 		// #endif
 		goto out_unlock;
 	}
@@ -3157,7 +3157,7 @@ static unsigned long deferred_split_count(struct shrinker *shrink,
 static unsigned long deferred_split_scan(struct shrinker *shrink,
 		struct shrink_control *sc)
 {
-	pr_alert("deferred_split_scan");
+	// pr_alert("deferred_split_scan");
 	struct pglist_data *pgdata = NODE_DATA(sc->nid);
 	unsigned long flags;
 	LIST_HEAD(list), *pos, *next;
@@ -3190,7 +3190,7 @@ static unsigned long deferred_split_scan(struct shrinker *shrink,
 			// pr_alert("goto next");
 			goto next;
 		}
-		pr_info("split_huge_page page_to_pfn(page) = %lx", page_to_pfn(page));
+		// pr_info("split_huge_page page_to_pfn(page) = %lx", page_to_pfn(page));
 		/* split_huge_page() removes page from list on success */
 		if (!split_huge_page(page)) {
 			// pr_alert("split++");

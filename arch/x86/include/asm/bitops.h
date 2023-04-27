@@ -17,7 +17,6 @@
 #include <asm/alternative.h>
 #include <asm/rmwcc.h>
 #include <asm/barrier.h>
-#include <linux/printk.h>
 
 #if BITS_PER_LONG == 32
 # define _BITOPS_LONG_SHIFT 5
@@ -312,7 +311,11 @@ static __always_inline bool test_and_change_bit(long nr, volatile unsigned long 
 	                 *addr, "Ir", nr, "%0", c);
 }
 
-extern bool constant_test_bit(long nr, const volatile unsigned long *addr);
+static __always_inline bool constant_test_bit(long nr, const volatile unsigned long *addr)
+{
+	return ((1UL << (nr & (BITS_PER_LONG-1))) &
+		(addr[nr >> _BITOPS_LONG_SHIFT])) != 0;
+}
 
 static bool variable_test_bit(long nr, volatile const unsigned long *addr)
 {

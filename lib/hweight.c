@@ -3,12 +3,6 @@
 #include <linux/bitops.h>
 #include <asm/types.h>
 
-bool constant_test_bit(long nr, const volatile unsigned long *addr)
-{
-	return ((1UL << (nr & (BITS_PER_LONG-1))) &
-		(addr[nr >> _BITOPS_LONG_SHIFT])) != 0;
-}
-
 /**
  * hweightN - returns the hamming weight of a N-bit word
  * @x: the word to weigh

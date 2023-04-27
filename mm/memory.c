@@ -1487,7 +1487,6 @@ static inline unsigned long zap_pmd_range(struct mmu_gather *tlb,
 				print = true;
 				// pr_alert("before __split_huge_pmd addr = %lx PageTransCompound(page) = %d page_to_pfn(page) = %lx page_count(page) = %d total_mapcount(page) = %d", addr, PageTransCompound(page), page_to_pfn(page), page_count(page), total_mapcount(page));
 				// pr_alert("before __split_huge_pmd addr = %lx PageTransCompound(page) = %d page_to_pfn(page) = %lx page_count(page) = %d total_mapcount(page) = %d", addr, PageTransCompound(page+1), page_to_pfn(page+1), page_count(page+1), total_mapcount(page+1));
-				pr_info("rm_release_reservation zap_pmd_range");
 				rm_release_reservation(vma, addr);
 				__split_huge_pmd(vma, pmd, addr, false, NULL);
 				// pr_alert("__split_huge_pmd addr = %lx PageTransCompound(page) = %d page_to_pfn(page) = %lx page_count(page) = %d total_mapcount(page) = %d", addr, PageTransCompound(page), page_to_pfn(page), page_count(page), total_mapcount(page));
@@ -2671,7 +2670,6 @@ static vm_fault_t wp_page_copy(struct vm_fault *vmf)
 		if (!new_page)
 			goto oom;
 	} else {
-		pr_info("rm_release_reservation wp_page_copy");
     	rm_release_reservation(vma, vmf->address);
 		new_page = alloc_page_vma(GFP_HIGHUSER_MOVABLE, vma,
 				vmf->address);
@@ -3368,10 +3366,10 @@ static vm_fault_t do_anonymous_page(struct vm_fault *vmf)
 {
 	struct vm_area_struct *vma = vmf->vma;
 	struct mem_cgroup *memcg;
-	struct page *page;
+	struct page *page = NULL;
 	vm_fault_t ret = 0;
 	pte_t entry;
-	unsigned long *mask = NULL;
+	bool out = false;
 	int i;
 
 	/* File mapping without ->vm_ops ? */
@@ -3398,24 +3396,24 @@ static vm_fault_t do_anonymous_page(struct vm_fault *vmf)
 		return 0;
 
 	/* Use the zero-page for reads */
-	// if (!(vmf->flags & FAULT_FLAG_WRITE) &&
-	// 		!mm_forbids_zeropage(vma->vm_mm)) {
-	// 	entry = pte_mkspecial(pfn_pte(my_zero_pfn(vmf->address),
-	// 					vma->vm_page_prot));
-	// 	vmf->pte = pte_offset_map_lock(vma->vm_mm, vmf->pmd,
-	// 			vmf->address, &vmf->ptl);
-	// 	if (!pte_none(*vmf->pte))
-	// 		goto unlock;
-	// 	ret = check_stable_address_space(vma->vm_mm);
-	// 	if (ret)
-	// 		goto unlock;
-	// 	/* Deliver the page fault to userland, check inside PT lock */
-	// 	if (userfaultfd_missing(vma)) {
-	// 		pte_unmap_unlock(vmf->pte, vmf->ptl);
-	// 		return handle_userfault(vmf, VM_UFFD_MISSING);
-	// 	}
-	// 	goto setpte;
-	// }
+	if (!(vmf->flags & FAULT_FLAG_WRITE) &&
+			!mm_forbids_zeropage(vma->vm_mm)) {
+		entry = pte_mkspecial(pfn_pte(my_zero_pfn(vmf->address),
+						vma->vm_page_prot));
+		vmf->pte = pte_offset_map_lock(vma->vm_mm, vmf->pmd,
+				vmf->address, &vmf->ptl);
+		if (!pte_none(*vmf->pte))
+			goto unlock;
+		ret = check_stable_address_space(vma->vm_mm);
+		if (ret)
+			goto unlock;
+		/* Deliver the page fault to userland, check inside PT lock */
+		if (userfaultfd_missing(vma)) {
+			pte_unmap_unlock(vmf->pte, vmf->ptl);
+			return handle_userfault(vmf, VM_UFFD_MISSING);
+		}
+		goto setpte;
+	}
 
 	/* Allocate our own private page. */
 
@@ -3429,16 +3427,13 @@ static vm_fault_t do_anonymous_page(struct vm_fault *vmf)
 	}
 	// pr_alert("> vma->vm_mm->owner->cred->uid = %ld", vma->vm_mm->owner->cred->uid);
 	if (GET_RM_ROOT(vma) /*&& !uid_eq(vma->vm_mm->owner->cred->uid, GLOBAL_ROOT_UID)*/ ) {
-		page = rm_alloc_from_reservation(vma, vmf->address, &mask);
-		#ifdef DEBUG_RESERV_THP
-		pr_alert("rm page = %ld address = %lx", page_to_pfn(page), vmf->address);
-		#endif
+		page = rm_alloc_from_reservation(vma, vmf->address, &out);
+		if (out)
+			return 0;
 	} else {
 		page = NULL;
 	}
-	if ((GET_RM_ROOT(vma)) && (page == NULL)) {
-		count_vm_event(MEM_RESERVATIONS_ALLOC_FAILED);
-	}
+	
 	if (!page) {
 		page = alloc_zeroed_user_highpage_movable(vma, vmf->address);
 		// pr_alert("page zone name = %s", page_zone(page)->name);
@@ -3458,11 +3453,11 @@ static vm_fault_t do_anonymous_page(struct vm_fault *vmf)
 	 */
 	__SetPageUptodate(page);
 
-	// #ifdef DEBUG_RESERV_THP
+	#ifdef DEBUG_RESERV_THP
 	if (PageTransCompound(page)) {
 		pr_alert("memory.c after __SetPageUptodate PageTransCompound(page) == true");
 	}
-	// #endif
+	#endif
 
 	entry = mk_pte(page, vma->vm_page_prot);
 	if (vma->vm_flags & VM_WRITE)
@@ -3471,13 +3466,13 @@ static vm_fault_t do_anonymous_page(struct vm_fault *vmf)
 	vmf->pte = pte_offset_map_lock(vma->vm_mm, vmf->pmd, vmf->address,
 			&vmf->ptl);
 	if (!pte_none(*vmf->pte)) {
-		pr_info("pte_none(*vmf->pte) page_to_pfn(page) = %ld PageLRU(page) = %d", page_to_pfn(page), PageLRU(page));
+		// pr_info("pte_none(*vmf->pte) page_to_pfn(page) = %ld PageLRU(page) = %d", page_to_pfn(page), PageLRU(page));
 		goto release;
 	}
 
 	ret = check_stable_address_space(vma->vm_mm);
 	if (ret) {
-		pr_info("check_stable_address_space page_to_pfn(page) = %ld", page_to_pfn(page));
+		// pr_info("check_stable_address_space page_to_pfn(page) = %ld", page_to_pfn(page));
 		goto release;
 	}
 	/* Deliver the page fault to userland, check inside PT lock */
@@ -4550,12 +4545,6 @@ static vm_fault_t __handle_mm_fault(struct vm_area_struct *vma,
 	hstart = (vma->vm_start + ~HPAGE_PMD_MASK) & HPAGE_PMD_MASK;
 	hend = vma->vm_end & HPAGE_PMD_MASK;
 	rm_entry = get_rm_entry_from_reservation(vma, vmf.address, &mask);
-	if (rm_entry) {
-		if (mask)
-			pr_info("rm_entry->next_node = %p haddr = %lx mask = %d", rm_entry->next_node, vmf.address & RESERV_MASK, bitmap_weight(mask, 512));
-		else
-			pr_info("rm_entry->next_node = %p haddr = %lx mask = NULL", rm_entry->next_node, vmf.address & RESERV_MASK);
-	}
 
 	// pr_info("3 __handle_mm_fault vma->vm_start = %lx vma->vm_end = %lx address = %lx", vma->vm_start, vma->vm_end, address);
 	// pr_info("rm_entry->mask = %p address = %ld", rm_entry->mask, vmf.address & RESERV_MASK);
@@ -4566,13 +4555,13 @@ static vm_fault_t __handle_mm_fault(struct vm_area_struct *vma,
 		mask = NULL;
 		rm_entry = get_rm_entry_from_reservation(vma, vmf.address, &mask);
 		if (!rm_entry || (address < hstart || address + HPAGE_PMD_SIZE > hend) || mask == NULL || bitmap_weight(mask, 512) <= 64) {
-			pr_info("goto out rm_entry");
+			// pr_info("goto out rm_entry");
 			goto out;
 		}
 
 		int result = hugepage_vma_revalidate(mm, vmf.address, &vma);
 		if (result) {
-			pr_info("goto out hugepage_vma_revalidate");
+			// pr_info("goto out hugepage_vma_revalidate");
 			goto out;
 		}
 
@@ -4583,13 +4572,13 @@ static vm_fault_t __handle_mm_fault(struct vm_area_struct *vma,
 		
 		unsigned long haddr = vmf.address & RESERV_MASK;
 		struct page *head = get_page_from_rm((unsigned long) rm_entry->next_node);
-		pr_info("page_to_pfn(head) = %lx rm_entry->next_node = %p haddr = %lx mask = %d", page_to_pfn(head),  rm_entry->next_node, haddr, bitmap_weight(mask, 512));
+		// pr_info("page_to_pfn(head) = %lx rm_entry->next_node = %p haddr = %lx mask = %d", page_to_pfn(head),  rm_entry->next_node, haddr, bitmap_weight(mask, 512));
 		if (PageTransCompound(head)) {
 			// pr_alert("PageTransCompound(head) == true page_to_pfn(head) = %ld vmf.address = %lx return 0",  page_to_pfn(head), vmf.address);
 			// int i = 0;
 			// #ifdef DEBUG_RESERV_THP
-			int region_offset   = (address & (~RESERV_MASK)) >> PAGE_SHIFT;
-			struct page *pageTmp = head + region_offset; 
+			// int region_offset   = (address & (~RESERV_MASK)) >> PAGE_SHIFT;
+			// struct page *pageTmp = head + region_offset; 
 			// for (i = 0; i < RESERV_NR; i++) {
 				// pr_info("memory.c page = %ld PageActive(page) = %d PageLRU(page) = %d page_count(page) = %d total_mapcount(page) = %d PageTransCompound(page) = %d", page_to_pfn(pageTmp), PageActive(pageTmp), PageLRU(pageTmp), page_count(pageTmp), total_mapcount(pageTmp), PageTransCompound(pageTmp));
 			// }
@@ -4658,7 +4647,6 @@ static vm_fault_t __handle_mm_fault(struct vm_area_struct *vma,
 				anon_vma_unlock_read(anon_vma);
 			}
 			#endif
-			
 			up_write(&mm->mmap_sem);
 			down_read(&mm->mmap_sem);
 			// pr_alert("current->pid = %d", task_pid_nr(current));

@@ -17,11 +17,12 @@
 #include <linux/rmap.h>
 #include <linux/jiffies.h>
 #include <reservation_tracking/reserv_tracking.h>
+#include "internal.h"
 
 struct rm_node* rm_node_create() {
   struct rm_node* new = NULL;
   unsigned int i;
-  new = kmalloc(sizeof(struct rm_node), GFP_KERNEL);
+  new = kmalloc(sizeof(struct rm_node), GFP_KERNEL & ~__GFP_RECLAIM);
   if (new) {
     for (i = 0; i < RT_NODE_RANGE_SIZE; i++) {
       spin_lock_init(&new->items[i].lock);
@@ -50,10 +51,7 @@ extern void rm_release_reservation(struct vm_area_struct *vma, unsigned long add
 
 	unsigned long haddr = address & RESERV_MASK; 
   int region_offset   = (address & (~RESERV_MASK)) >> PAGE_SHIFT;
-  bool my_app         = true;//(vma->vm_mm->owner->pid == 5555);
 
-  if (!my_app) 
-    return;
   if (cur_node == NULL) 
     return;
   if (!vma_is_anonymous(vma)) {
@@ -65,17 +63,15 @@ extern void rm_release_reservation(struct vm_area_struct *vma, unsigned long add
   for (level = 1; level < NUM_RT_LEVELS; level++) {
     index = get_node_index(level, address);
     next_lock = &cur_node->items[index].lock;
-    next_node = cur_node->items[index].next_node;
 
-    if (unlikely(next_node == NULL)) {
-      spin_lock(next_lock);
-      if (next_node == NULL) {
-        cur_node->items[index].next_node = rm_node_create();
-      }
+    spin_lock(next_lock);
+    if (cur_node->items[index].next_node == NULL) {
       spin_unlock(next_lock);
+      return;
     }
-
+    spin_unlock(next_lock);
     cur_node = cur_node->items[index].next_node;
+
   }
 
   // secondly, process the leaf node
@@ -88,12 +84,8 @@ extern void rm_release_reservation(struct vm_area_struct *vma, unsigned long add
   mask = (unsigned long *)(cur_node->items[index].mask);
   if (leaf_value != 0) { 
     page = get_page_from_rm(leaf_value);
-    unused = 512 - bitmap_weight(mask, 512);
-    if (unused) {
-      mod_node_page_state(page_pgdat(page), NR_MEM_RESERVATIONS_RESERVED, -unused);
-    }
     // #ifdef DEBUG_RESERV_THP
-    pr_info("rm_release PageTransCompound(page) = %d address = %lx page_to_pfn(page) = %lx page_count(page) = %d total_mapcount(page) = %d page_mapcount(page) = %d", PageTransCompound(page), address, page_to_pfn(page), page_count(page), total_mapcount(page), page_mapcount(page));
+    // pr_info("rm_release PageTransCompound(page) = %d haddr = %lx address = %lx page_to_pfn(page) = %lx page_count(page) = %d total_mapcount(page) = %d page_mapcount(page) = %d", PageTransCompound(page), haddr, address, page_to_pfn(page), page_count(page), total_mapcount(page), page_mapcount(page));
     // #endif
     if (PageTransCompound(page)) {
       // #ifdef DEBUG_RESERV_THP
@@ -155,6 +147,10 @@ extern void rm_release_reservation(struct vm_area_struct *vma, unsigned long add
         put_page(page+i);
       }
     }
+
+    for (i = 0; i < RESERV_NR; i++) {
+      (page+i)->reservation = NULL;
+    }
     // pr_alert("osa_hpage_exit_list release");
     // osa_hpage_exit_list(&cur_node->items[index]);
     cur_node->items[index].next_node = 0; 
@@ -178,10 +174,6 @@ extern void rm_release_reservation_fast(struct rm_entry *rm_entry) {
   mask = (unsigned long *)(rm_entry->mask);
   if (leaf_value != 0) { 
     page = get_page_from_rm(leaf_value);
-    unused = 512 - bitmap_weight(mask, 512);
-    if (unused) {
-      mod_node_page_state(page_pgdat(page), NR_MEM_RESERVATIONS_RESERVED, -unused);
-    }
     // #ifdef DEBUG_RESERV_THP
     // pr_alert("rm_release PageTransCompound(page) = %d page_to_pfn(page) = %ld PageLRU(page) = %d page_count(page) = %d total_mapcount(page) = %d page_zonenum(page) = %d", PageTransCompound(page), page_to_pfn(page), PageLRU(page), page_count(page), total_mapcount(page), page_zonenum(page));
     // #endif
@@ -259,10 +251,7 @@ int get_mask_weight_from_reservation(struct vm_area_struct *vma, unsigned long a
 
 	unsigned long haddr = address & RESERV_MASK; 
   int region_offset   = (address & (~RESERV_MASK)) >> PAGE_SHIFT;
-  bool my_app         = true;//(vma->vm_mm->owner->pid == 5555);
-
-  if (!my_app) 
-    return false;
+ 
   if (cur_node == NULL) 
     return false;
   if (!vma_is_anonymous(vma)) {
@@ -274,19 +263,16 @@ int get_mask_weight_from_reservation(struct vm_area_struct *vma, unsigned long a
   for (level = 1; level < NUM_RT_LEVELS; level++) {
     index = get_node_index(level, address);
     next_lock = &cur_node->items[index].lock;
-    next_node = cur_node->items[index].next_node;
 
-    if (unlikely(next_node == NULL)) {
-      spin_lock(next_lock);
-      if (next_node == NULL) {
-        cur_node->items[index].next_node = rm_node_create();
-      }
-      spin_unlock(next_lock);
+    spin_lock(next_lock);
+    if (cur_node->items[index].next_node == NULL) {
+      cur_node->items[index].next_node = rm_node_create();
     }
-
+    spin_unlock(next_lock);
     cur_node = cur_node->items[index].next_node;
-  }
 
+  }
+  
   // secondly, process the leaf node
   level = NUM_RT_LEVELS;
   index = get_node_index(level, address); 
@@ -323,10 +309,7 @@ struct rm_entry *get_rm_entry_from_reservation(struct vm_area_struct *vma, unsig
 
 	unsigned long haddr = address & RESERV_MASK; 
   int region_offset   = (address & (~RESERV_MASK)) >> PAGE_SHIFT;
-  bool my_app         = true;//(vma->vm_mm->owner->pid == 5555);
 
-  if (!my_app) 
-    return NULL;
   if (cur_node == NULL) 
     return NULL;
   if (!vma_is_anonymous(vma)) {
@@ -338,17 +321,14 @@ struct rm_entry *get_rm_entry_from_reservation(struct vm_area_struct *vma, unsig
   for (level = 1; level < NUM_RT_LEVELS; level++) {
     index = get_node_index(level, address);
     next_lock = &cur_node->items[index].lock;
-    next_node = cur_node->items[index].next_node;
 
-    if (unlikely(next_node == NULL)) {
-      spin_lock(next_lock);
-      if (next_node == NULL) {
-        cur_node->items[index].next_node = rm_node_create();
-      }
-      spin_unlock(next_lock);
+    spin_lock(next_lock);
+    if (cur_node->items[index].next_node == NULL) {
+      cur_node->items[index].next_node = rm_node_create();
     }
-
+    spin_unlock(next_lock);
     cur_node = cur_node->items[index].next_node;
+
   }
 
   // secondly, process the leaf node
@@ -366,8 +346,64 @@ struct rm_entry *get_rm_entry_from_reservation(struct vm_area_struct *vma, unsig
   return entry;
 }
 
-struct page *rm_alloc_from_reservation(struct vm_area_struct *vma, unsigned long address, unsigned long **_mask) {
+struct rm_entry *get_rm_entry_from_reservation_lock(struct vm_area_struct *vma, unsigned long address, unsigned long **_mask) {
   int retPrmtHugePage;
+
+  unsigned char level;
+  unsigned int i;
+  unsigned int index;
+
+  struct rm_node *cur_node = GET_RM_ROOT(vma);
+  struct rm_node *next_node;
+  struct rm_entry *entry;
+  
+  unsigned long leaf_value;
+  unsigned long *mask;
+
+  struct page *page, *head;
+  spinlock_t  *next_lock;
+
+	unsigned long haddr = address & RESERV_MASK; 
+  int region_offset   = (address & (~RESERV_MASK)) >> PAGE_SHIFT;
+
+  if (cur_node == NULL) 
+    return NULL;
+  if (!vma_is_anonymous(vma)) {
+    return NULL;
+  }
+
+  // traverse the reservation map radix tree
+  // firstly, go through all levels but don't go to the leaf node
+  for (level = 1; level < NUM_RT_LEVELS; level++) {
+    index = get_node_index(level, address);
+    next_lock = &cur_node->items[index].lock;
+
+    spin_lock(next_lock);
+    if (cur_node->items[index].next_node == NULL) {
+      cur_node->items[index].next_node = rm_node_create();
+    }
+    spin_unlock(next_lock);
+    cur_node = cur_node->items[index].next_node;
+
+  }
+
+  // secondly, process the leaf node
+  level = NUM_RT_LEVELS;
+  index = get_node_index(level, address); 
+  next_lock = &cur_node->items[index].lock;
+
+  spin_lock(next_lock);
+  entry = &cur_node->items[index];
+  if (entry->next_node == 0) {
+    bitmap_zero(entry->mask, 512);
+  }
+  *_mask = entry->mask;
+  return entry;
+}
+
+struct page *rm_alloc_from_reservation(struct vm_area_struct *vma, unsigned long address, bool *out) {
+  int retPrmtHugePage;
+  *out = false;
 
   unsigned char level;
   unsigned int i;
@@ -383,13 +419,10 @@ struct page *rm_alloc_from_reservation(struct vm_area_struct *vma, unsigned long
   struct page *head, *page;
   spinlock_t  *next_lock;
 
-  gfp_t gfp           = ((GFP_HIGHUSER | __GFP_NOMEMALLOC | __GFP_NOWARN) & ~__GFP_DIRECT_RECLAIM/*~__GFP_RECLAIM*/);
+  gfp_t gfp           = ((GFP_HIGHUSER | __GFP_NOMEMALLOC | __GFP_NOWARN) & ~__GFP_DIRECT_RECLAIM);
 	unsigned long haddr = address & RESERV_MASK;
   int region_offset   = (address & (~RESERV_MASK)) >> PAGE_SHIFT;
-  bool my_app         = true;//(vma->vm_mm->owner->pid == 5555);
-
-  if (!my_app) 
-    return NULL;
+  
   if (cur_node == NULL) 
     return false;
   if (!vma_is_anonymous(vma)) {
@@ -401,17 +434,14 @@ struct page *rm_alloc_from_reservation(struct vm_area_struct *vma, unsigned long
   for (level = 1; level < NUM_RT_LEVELS; level++) {
     index = get_node_index(level, address);
     next_lock = &cur_node->items[index].lock;
-    next_node = cur_node->items[index].next_node;
 
-    if (unlikely(next_node == NULL)) {
-      spin_lock(next_lock);
-      if (next_node == NULL) {
-        cur_node->items[index].next_node = rm_node_create();
-      }
-      spin_unlock(next_lock);
+    spin_lock(next_lock);
+    if (cur_node->items[index].next_node == NULL) {
+      cur_node->items[index].next_node = rm_node_create();
     }
-
+    spin_unlock(next_lock);
     cur_node = cur_node->items[index].next_node;
+
   }
 
   // secondly, process the leaf node
@@ -435,22 +465,19 @@ struct page *rm_alloc_from_reservation(struct vm_area_struct *vma, unsigned long
     }
     for (i = 0; i < RESERV_NR; i++) {
       set_page_count(page + i, 1);
-      (page+i)->reservation = &cur_node->items[index];
+      (page+i)->reservation = 666;
     }
     // clear_huge_page(page, haddr, HPAGE_PMD_NR);
     // create a leaf node
     leaf_value = create_value(page);
     bitmap_zero(mask, 512);
 
-    mod_node_page_state(page_pgdat(page), NR_MEM_RESERVATIONS_RESERVED, RESERV_NR - 1);
-    count_vm_event(MEM_RESERVATIONS_ALLOC);
     INIT_LIST_HEAD(&cur_node->items[index].osa_hpage_scan_link);
     cur_node->items[index].timestamp = jiffies_to_msecs(jiffies);
     // pr_alert("osa_hpage_enter_list");
     // osa_hpage_enter_list(&cur_node->items[index]);
     // wake_up_interruptible(&osa_hpage_scand_wait);
   } else {
-    mod_node_page_state(page_pgdat(page), NR_MEM_RESERVATIONS_RESERVED, -1);
     if (PageTransCompound(page)) {
       pr_alert("rm_alloc PageTransCompound(page) goto out_unlock");
       goto out_unlock;
@@ -458,21 +485,21 @@ struct page *rm_alloc_from_reservation(struct vm_area_struct *vma, unsigned long
   }
   page = page + region_offset;
   
-  cur_node->items[index].next_node = (void*)(leaf_value);
-  get_page(page);
 
   if (PageTransCompound(page)) {
     pr_alert("rm_alloc PageTransCompound(page)");
   }
 
-  if (!test_bit(region_offset, mask))
+  if (!test_bit(region_offset, mask)) {
     clear_user_highpage(page, address);
-  else
-    pr_info("rm_alloc test_bit == true page_to_pfn(page) = %ld PageLRU(page) = %d", page_to_pfn(page), PageLRU(page));
+    get_page(page);
+  } else {
+    *out = true;
+  }
 
   // mark the page as used
   set_bit(region_offset, mask);
-  *_mask = mask;
+  cur_node->items[index].next_node = (void*)(leaf_value);
 
 out_unlock:
   spin_unlock(next_lock);
@@ -514,9 +541,9 @@ void rm_destroy(struct rm_node *node, unsigned char level) { //not thread-safe
         // if (unused) {
         //   mod_node_page_state(page_pgdat(page), NR_MEM_RESERVATIONS_RESERVED, -unused);
         // }
-        // #ifdef DEBUG_RESERV_THP
+        #ifdef DEBUG_RESERV_THP
         pr_info("rm_destroy PageTransCompound(page) = %d page_to_pfn(page) = %lx  PageActive(page) = %d PageLRU(page) = %d page_count(page) = %d total_mapcount(page) = %d", PageTransCompound(page), page_to_pfn(page), PageActive(page), PageLRU(page), page_count(page), total_mapcount(page));
-        // #endif
+        #endif
         if (PageTransCompound(page)) {
           #ifdef DEBUG_RESERV_THP
           for (i = 0; i < RESERV_NR; i++) {
