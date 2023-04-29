@@ -4259,7 +4259,6 @@ retry:
 	// }
 	// spin_unlock(&osa_hpage_list_lock);
 
-	pr_info("__alloc_pages_direct_reclaim");
 	/* Try direct reclaim and then allocating */
 	page = __alloc_pages_direct_reclaim(gfp_mask, order, alloc_flags, ac,
 							&did_some_progress);
@@ -4267,7 +4266,7 @@ retry:
 		goto got_pg;
 
 	pr_info("__alloc_pages_direct_compact");
-	// /* Try direct compaction and then allocating */
+	/* Try direct compaction and then allocating */
 	page = __alloc_pages_direct_compact(gfp_mask, order, alloc_flags, ac,
 					compact_priority, &compact_result);
 	if (page)

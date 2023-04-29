@@ -4545,17 +4545,13 @@ static vm_fault_t __handle_mm_fault(struct vm_area_struct *vma,
 	hstart = (vma->vm_start + ~HPAGE_PMD_MASK) & HPAGE_PMD_MASK;
 	hend = vma->vm_end & HPAGE_PMD_MASK;
 	rm_entry = get_rm_entry_from_reservation(vma, vmf.address, &mask);
-
-	// pr_info("3 __handle_mm_fault vma->vm_start = %lx vma->vm_end = %lx address = %lx", vma->vm_start, vma->vm_end, address);
-	// pr_info("rm_entry->mask = %p address = %ld", rm_entry->mask, vmf.address & RESERV_MASK);
 	if (!(address < hstart || address + HPAGE_PMD_SIZE > hend) && rm_entry && mask != NULL && bitmap_weight(mask, 512) > 64) {
 		up_read(&mm->mmap_sem);
 		down_write(&mm->mmap_sem);
-		// pr_info("> rm_entry->mask = %p address = %ld", rm_entry->mask, vmf.address & RESERV_MASK);
-		mask = NULL;
-		rm_entry = get_rm_entry_from_reservation(vma, vmf.address, &mask);
-		if (!rm_entry || (address < hstart || address + HPAGE_PMD_SIZE > hend) || mask == NULL || bitmap_weight(mask, 512) <= 64) {
-			// pr_info("goto out rm_entry");
+		spin_lock(&rm_entry->lock);
+
+		if (!rm_entry->next_node) {
+			pr_alert("!rm_entry->next_node");
 			goto out;
 		}
 
@@ -4565,97 +4561,35 @@ static vm_fault_t __handle_mm_fault(struct vm_area_struct *vma,
 			goto out;
 		}
 
+		// mask = NULL;
+		// rm_entry = get_rm_entry_from_reservation(vma, vmf.address, &mask);
+		// if (!rm_entry || (address < hstart || address + HPAGE_PMD_SIZE > hend) || mask == NULL || bitmap_weight(mask, 512) <= 64) {
+		// 	pr_alert("goto out rm_entry");
+		// 	goto out;
+		// }
+
 		lru_add_drain_all(); // drena os LRUs
-		#ifdef DEBUG_RESERV_THP
-		pr_info("bitmap_weight > 64");
-		#endif
 		
 		unsigned long haddr = vmf.address & RESERV_MASK;
 		struct page *head = get_page_from_rm((unsigned long) rm_entry->next_node);
 		// pr_info("page_to_pfn(head) = %lx rm_entry->next_node = %p haddr = %lx mask = %d", page_to_pfn(head),  rm_entry->next_node, haddr, bitmap_weight(mask, 512));
 		if (PageTransCompound(head)) {
-			// pr_alert("PageTransCompound(head) == true page_to_pfn(head) = %ld vmf.address = %lx return 0",  page_to_pfn(head), vmf.address);
-			// int i = 0;
-			// #ifdef DEBUG_RESERV_THP
-			// int region_offset   = (address & (~RESERV_MASK)) >> PAGE_SHIFT;
-			// struct page *pageTmp = head + region_offset; 
-			// for (i = 0; i < RESERV_NR; i++) {
-				// pr_info("memory.c page = %ld PageActive(page) = %d PageLRU(page) = %d page_count(page) = %d total_mapcount(page) = %d PageTransCompound(page) = %d", page_to_pfn(pageTmp), PageActive(pageTmp), PageLRU(pageTmp), page_count(pageTmp), total_mapcount(pageTmp), PageTransCompound(pageTmp));
-			// }
-			// #endif
-			// dump_pagetable(vmf.address);
+			spin_unlock(&rm_entry->lock);
 			up_write(&mm->mmap_sem);
+			// pr_info("return VM_FAULT_RETRY;");
 			return VM_FAULT_RETRY;
 		}
-		// pr_alert("rm_alloc INIT promote page haddr = %lx vma->flags = %ld page_to_pfn(head) = %ld page_count(head) = %d compound_mapcount(head) = %d total_mapcount(head) = %d PageActive(head) = %d PageTransCompound(head) = %d", haddr, vma->vm_flags, page_to_pfn(head), page_count(head), compound_mapcount(head), total_mapcount(head), PageActive(head), PageTransCompound(head));
-		#ifdef DEBUG_RESERV_THP
-
-		struct anon_vma_chain *vmac;
-		struct vm_area_struct *_vma;
-		struct anon_vma *anon_vma;
-		for (i = 0; i < RESERV_NR; i++) {
-			anon_vma = page_get_anon_vma(head+i);
-			if (!anon_vma) {
-				pr_alert("rm_alloc anon_vma = NULL page = %ld PageActive(page) = %d PageLRU(page) = %d page_count(page) = %d total_mapcount(page) = %d page->_mapcount = %d compound_mapcount(page) = %d PageTransCompound(page) = %d", page_to_pfn(head+i), PageActive(head+i), PageLRU(head+i), page_count(head+i), total_mapcount(head+i), atomic_read(&(head+i)->_mapcount), compound_mapcount(head+i), PageTransCompound(head+i));
-				continue;
-			}
-			pr_alert("rm_alloc page = %ld PageActive(page) = %d PageLRU(page) = %d page_count(page) = %d total_mapcount(page) = %d page->_mapcount = %d compound_mapcount(page) = %d PageTransCompound(page) = %d", page_to_pfn(head+i), PageActive(head+i), PageLRU(head+i), page_count(head+i), total_mapcount(head+i), atomic_read(&(head+i)->_mapcount), compound_mapcount(head+i), PageTransCompound(head+i));
-			anon_vma_lock_read(anon_vma);
-			anon_vma_interval_tree_foreach(vmac, &anon_vma->rb_root, 0, ULONG_MAX) {
-				_vma = vmac->vma;
-				if (_vma && _vma->vm_mm)
-					pr_alert("vma->vm_mm->owner->pid = %d", _vma->vm_mm->owner->pid);
-			}
-			anon_vma_unlock_read(anon_vma);
-		}
-		#endif
 		
 		int retPrmtHugePage = promote_huge_page_address(vma, head, haddr);
-		
 		if (!retPrmtHugePage) {
-			// if (is_stack_mapping(vma->vm_flags))
-			// 	pr_alert("stack_mapping");
-			// else
-			// 	pr_alert("-");
-			// if (vma->vm_flags & VM_SHARED)
-			// 	pr_alert("VM_SHARED");
-
-			// pr_alert("promotion SUCCESS page_to_pfn(head) = %ld", page_to_pfn(head));
-			// dump_pagetable(vmf.address);
-			// osa_hpage_exit_list(rm_entry);
-			// pr_alert("osa_hpage_exit_list promote");
-			// pr_info("rm_alloc FIM promote page retPrmtHugePage = %d page_to_pfn(head) = %ld page_count(head) = %d compound_mapcount(head) = %d total_mapcount(head) = %d PageActive(head) = %d PageTransCompound(head) = %d", retPrmtHugePage, page_to_pfn(head), page_count(head), compound_mapcount(head), total_mapcount(head), PageActive(head), PageTransCompound(head));
-			// dump_pagetable(vmf.address);
-			#ifdef DEBUG_RESERV_THP
-			
-			struct anon_vma_chain *vmac;
-			struct vm_area_struct *_vma;
-			struct anon_vma *anon_vma;
-			for (i = 0; i < RESERV_NR; i++) {
-				anon_vma = page_get_anon_vma(head+i);
-				if (!anon_vma) {
-					pr_alert("rm_alloc anon_vma = NULL page = %ld PageActive(page) = %d PageLRU(page) = %d page_count(page) = %d total_mapcount(page) = %d page->_mapcount = %d compound_mapcount(page) = %d PageTransCompound(page) = %d", page_to_pfn(head+i), PageActive(head+i), PageLRU(head+i), page_count(head+i), total_mapcount(head+i), atomic_read(&(head+i)->_mapcount), compound_mapcount(head+i), PageTransCompound(head+i));
-					continue;
-				}
-				pr_alert("rm_alloc page = %ld PageActive(page) = %d PageLRU(page) = %d page_count(page) = %d total_mapcount(page) = %d page->_mapcount = %d compound_mapcount(page) = %d PageTransCompound(page) = %d", page_to_pfn(head+i), PageActive(head+i), PageLRU(head+i), page_count(head+i), total_mapcount(head+i), atomic_read(&(head+i)->_mapcount), compound_mapcount(head+i), PageTransCompound(head+i));
-				anon_vma_lock_read(anon_vma);
-				anon_vma_interval_tree_foreach(vmac, &anon_vma->rb_root, 0, ULONG_MAX) {
-					_vma = vmac->vma;
-					if (_vma && _vma->vm_mm)
-						pr_alert("vma->vm_mm->owner->pid = %d", _vma->vm_mm->owner->pid);
-				}
-				anon_vma_unlock_read(anon_vma);
-			}
-			#endif
+			osa_hpage_exit_list(rm_entry);
+			spin_unlock(&rm_entry->lock);
 			up_write(&mm->mmap_sem);
 			down_read(&mm->mmap_sem);
-			// pr_alert("current->pid = %d", task_pid_nr(current));
 			return 0;
 		} 
-		// else {
-		// 	pr_alert("promotion ERROR page_to_pfn(head) = %ld", page_to_pfn(head));
-		// }
 out:
+		spin_unlock(&rm_entry->lock);
 		up_write(&mm->mmap_sem);
 		down_read(&mm->mmap_sem);
 	}

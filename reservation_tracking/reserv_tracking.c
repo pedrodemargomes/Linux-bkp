@@ -247,14 +247,14 @@ static int __init osa_hugepage_init(void)
 
 	INIT_LIST_HEAD(&osa_hpage_scan_list);
 
-	// err = start_stop_osa_hpage_scand();
-	// if (err)
-	// 	goto err_sysfs;
+	err = start_stop_osa_hpage_scand();
+	if (err)
+		goto err_sysfs;
 
-	// /* init sysfs */
-	// err = reserve_tracking_init_sysfs();
-	// if (err)
-	// 	goto err_sysfs;
+	/* init sysfs */
+	err = reserve_tracking_init_sysfs();
+	if (err)
+		goto err_sysfs;
 
 	return 0;
 

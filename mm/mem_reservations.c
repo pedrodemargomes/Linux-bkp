@@ -152,7 +152,7 @@ extern void rm_release_reservation(struct vm_area_struct *vma, unsigned long add
       (page+i)->reservation = NULL;
     }
     // pr_alert("osa_hpage_exit_list release");
-    // osa_hpage_exit_list(&cur_node->items[index]);
+    osa_hpage_exit_list(&cur_node->items[index]);
     cur_node->items[index].next_node = 0; 
   }
   spin_unlock(next_lock);
@@ -226,6 +226,10 @@ extern void rm_release_reservation_fast(struct rm_entry *rm_entry) {
       //     pr_alert("rm_release page = %ld PageActive(page) = %d PageLRU(page) = %d page_count(page) = %d total_mapcount(page) = %d page->_mapcount = %d PageTransCompound(page) = %d page_zone(page)->zone_start_pfn = %lu", page_to_pfn(page+i), PageActive(page+i), PageLRU(page+i), page_count(page+i), total_mapcount(page+i), atomic_read(&(page+i)->_mapcount), PageTransCompound(page+i), page_zone(page+i)->zone_start_pfn);
       // }
 
+    }
+
+    for (i = 0; i < RESERV_NR; i++) {
+      (page+i)->reservation = NULL;
     }
 
     rm_entry->next_node = 0;
@@ -324,7 +328,8 @@ struct rm_entry *get_rm_entry_from_reservation(struct vm_area_struct *vma, unsig
 
     spin_lock(next_lock);
     if (cur_node->items[index].next_node == NULL) {
-      cur_node->items[index].next_node = rm_node_create();
+      spin_unlock(next_lock);
+      return NULL;
     }
     spin_unlock(next_lock);
     cur_node = cur_node->items[index].next_node;
@@ -461,6 +466,7 @@ struct page *rm_alloc_from_reservation(struct vm_area_struct *vma, unsigned long
     // allocate pages 
     page = alloc_pages_vma(gfp, RESERV_ORDER, vma, haddr, numa_node_id(), false);
     if (!page) {
+			pr_alert("alloc_pages_vma FAILED");
       goto out_unlock;
     }
     for (i = 0; i < RESERV_NR; i++) {
@@ -475,7 +481,7 @@ struct page *rm_alloc_from_reservation(struct vm_area_struct *vma, unsigned long
     INIT_LIST_HEAD(&cur_node->items[index].osa_hpage_scan_link);
     cur_node->items[index].timestamp = jiffies_to_msecs(jiffies);
     // pr_alert("osa_hpage_enter_list");
-    // osa_hpage_enter_list(&cur_node->items[index]);
+    osa_hpage_enter_list(&cur_node->items[index]);
     // wake_up_interruptible(&osa_hpage_scand_wait);
   } else {
     if (PageTransCompound(page)) {
@@ -531,7 +537,7 @@ void rm_destroy(struct rm_node *node, unsigned char level) { //not thread-safe
         // spin_lock(next_lock);
         // VM_BUG_ON(!(unsigned long)(cur_node->items[index].next_node));
         // pr_alert("osa_hpage_exit_list destroy");
-        // osa_hpage_exit_list(&cur_node->items[index]);
+        osa_hpage_exit_list(&cur_node->items[index]);
         page = get_page_from_rm(leaf_value);
         for (i = 0; i < RESERV_NR; i++) {
           (page+i)->reservation = NULL;

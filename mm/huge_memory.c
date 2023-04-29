@@ -2787,22 +2787,13 @@ int promote_huge_pmd_address(struct vm_area_struct *vma, unsigned long haddr, st
 	for (_pte = pte, page = head; _pte < pte + HPAGE_PMD_NR;
 				_pte++, page++, address += PAGE_SIZE) {
 		pte_t pteval = *_pte;
-		#ifdef DEBUG_RESERV_THP
-		pr_info("page = %ld page->_mapcount = %d", page_to_pfn(page), atomic_read(&(page)->_mapcount));
-		#endif
 		// pteeval nao eh none quando deveria ser e decrementa o mapcount para -2 quando deveria manter em -1
 		// É preciso vertificar se todos os ptes estão livres, caso estajam sendo usados para mapear paginas fora dessa reserva
 		// algo precisa ser feito https://lkml.org/lkml/2018/1/25/571
 		if (pte_none(pteval) || is_zero_pfn(pte_pfn(pteval))) {
-			#ifdef DEBUG_RESERV_THP
-			pr_alert("pte none or zero pfn during pmd promotion\n");
-			#endif
 			clear_user_highpage(page, address);
 			add_mm_counter(vma->vm_mm, MM_ANONPAGES, 1);
 			if (is_zero_pfn(pte_pfn(pteval))) {
-				#ifdef DEBUG_RESERV_THP
-				pr_alert("is_zero_pfn");
-				#endif
 				/*
 				 * ptl mostly unnecessary.
 				 */
@@ -2818,11 +2809,11 @@ int promote_huge_pmd_address(struct vm_area_struct *vma, unsigned long haddr, st
 			// #ifdef DEBUG_RESERV_THP
 			// pr_alert("else");
 
-			if (page_to_pfn(pte_page(pteval)) != page_to_pfn(page)) {
+			// if (page_to_pfn(pte_page(pteval)) != page_to_pfn(page)) {
 			// if (atomic_read(&(page)->_mapcount) == -1) {
-				struct page *page_pte = pte_page(pteval);
-				pr_alert("page_pte = %ld", page_to_pfn(page_pte));
-			}
+				// struct page *page_pte = pte_page(pteval);
+				// pr_alert("page_pte = %ld", page_to_pfn(page_pte));
+			// }
 			// #endif
 
 			// unlock_page(page);
@@ -2912,9 +2903,9 @@ int promote_huge_page_address(struct vm_area_struct *vma, struct page *head, uns
 	for (_pte = pte, page = head; _pte < pte + HPAGE_PMD_NR; _pte++, page++) {
 		pte_t pteval = *_pte;
 		if (!pte_none(pteval) && !is_zero_pfn(pte_pfn(pteval)) && ( (page_to_pfn(head) > page_to_pfn(pte_page(pteval))) || (page_to_pfn(pte_page(pteval)) >= page_to_pfn(head)+512) ) ) {
-			#ifdef DEBUG_RESERV_THP
-			pr_alert("pte checking ERROR head = %ld page = %ld page_to_pfn(pte_page(pteval)) = %ld", page_to_pfn(head), page_to_pfn(page), page_to_pfn(pte_page(pteval)));
-			#endif
+			// #ifdef DEBUG_RESERV_THP
+			// pr_alert("pte checking ERROR head = %ld page = %ld page_to_pfn(pte_page(pteval)) = %ld", page_to_pfn(head), page_to_pfn(page), page_to_pfn(pte_page(pteval)));
+			// #endif
 			return -EINVAL;
 		}
 	}
@@ -2923,10 +2914,10 @@ int promote_huge_page_address(struct vm_area_struct *vma, struct page *head, uns
 	int i;
 	for (i = 0; i < 512; i++) {
 		// pr_info("handle_pte_fault page = %ld PageActive(page) = %d PageLRU(page) = %d page_count(page) = %d total_mapcount(page) = %d PageUnevictable(page) = %d PageTransCompound(page) = %d", page_to_pfn(head+i), PageActive(head+i), PageLRU(head+i), page_count(head+i), total_mapcount(head+i), PageUnevictable(head+i), PageTransCompound(head+i));
-		if (!PageLRU(head+i) && PageActive(head+i)) {
-			pr_alert("promote_huge_page_address SetPageLRU page_to_pfn(page) = %ld", page_to_pfn(head+i));
+		// if (!PageLRU(head+i) && PageActive(head+i)) {
+		// 	pr_alert("promote_huge_page_address SetPageLRU page_to_pfn(page) = %ld", page_to_pfn(head+i));
 			// SetPageLRU(head+i);
-		}
+		// }
 		// ClearPageActive(head+i);
 		__page_cache_release(head+i);
 		// pr_info("> handle_pte_fault page = %ld PageActive(page) = %d PageLRU(page) = %d page_count(page) = %d total_mapcount(page) = %d PageUnevictable(page) = %d PageTransCompound(page) = %d", page_to_pfn(head+i), PageActive(head+i), PageLRU(head+i), page_count(head+i), total_mapcount(head+i), PageUnevictable(head+i), PageTransCompound(head+i));
