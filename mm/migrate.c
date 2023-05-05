@@ -1425,11 +1425,16 @@ int migrate_pages(struct list_head *from, new_page_t get_new_page,
 retry:
 			cond_resched();
 			
-			if(PageTransHuge(page))
-				pr_alert("FAIL migrating PageTransHuge page");
+			// if(PageTransHuge(page))
+			// 	pr_alert("FAIL migrating PageTransHuge page");
 
-			if ((int)page->reservation == 666)
-				pr_alert("FAIL migrating reserved page_count(page) = %d total_mapcount(page) = %d", page_count(page), total_mapcount(page));
+			// if ((int)page->reservation == 666) {
+			// 	pr_alert("FAIL migrating reserved page_count(page) = %d total_mapcount(page) = %d page_mapping(page) = %p page_to_pfn(page) = %lx", page_count(page), total_mapcount(page), page_mapping(page), page_to_pfn(page));
+			// }
+
+			// if ((int)page->reservation == 665) {
+			// 	pr_alert("FAIL migrating reserved 665 page_count(page) = %d total_mapcount(page) = %d page_mapping(page) = %p page_to_pfn(page) = %lx", page_count(page), total_mapcount(page), page_mapping(page), page_to_pfn(page));
+			// }
 
 			if (PageHuge(page))
 				rc = unmap_and_move_huge_page(get_new_page,

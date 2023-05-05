@@ -2711,11 +2711,6 @@ int promote_huge_pmd_address(struct vm_area_struct *vma, unsigned long haddr, st
 	struct mem_cgroup *memcg;
 	int i;
 
-	VM_BUG_ON(haddr & ~HPAGE_PMD_MASK);
-
-	if (haddr < vma->vm_start || (haddr + HPAGE_PMD_SIZE) > vma->vm_end)
-		return -EINVAL;
-
 	pmd = mm_find_pmd(mm, haddr);
 	if (!pmd || pmd_trans_huge(*pmd)) {
 		// #ifdef DEBUG_RESERV_THP

@@ -1947,6 +1947,13 @@ static void prep_new_page(struct page *page, unsigned int order, gfp_t gfp_flags
 
 	post_alloc_hook(page, order, gfp_flags);
 
+	if (gfp_flags & __GFP_RESERVE) {
+		for (i = 0; i < (1 << order); i++) {
+			set_page_count(page + i, 1);
+    		(page+i)->reservation = 666;
+		}
+	}
+
 	if (!free_pages_prezeroed() && (gfp_flags & __GFP_ZERO))
 		for (i = 0; i < (1 << order); i++)
 			clear_highpage(page + i);
@@ -3590,19 +3597,27 @@ out:
 static struct page *
 __alloc_pages_direct_compact(gfp_t gfp_mask, unsigned int order,
 		unsigned int alloc_flags, const struct alloc_context *ac,
-		enum compact_priority prio, enum compact_result *compact_result)
+		enum compact_priority prio, enum compact_result *compact_result, spinlock_t *lock)
 {
-	// pr_alert("__alloc_pages_direct_compact");
+	pr_info("__alloc_pages_direct_compact");
 	struct page *page;
 	unsigned int noreclaim_flag;
 
 	if (!order)
 		return NULL;
 
+	if (gfp_mask & __GFP_RESERVE)
+		spin_unlock(lock);
+
 	noreclaim_flag = memalloc_noreclaim_save();
 	*compact_result = try_to_compact_pages(gfp_mask, order, alloc_flags, ac,
 									prio);
 	memalloc_noreclaim_restore(noreclaim_flag);
+
+	if (gfp_mask & __GFP_RESERVE) {
+		pr_info("compact_result = %d", *compact_result);
+		return NULL;
+	}
 
 	if (*compact_result <= COMPACT_INACTIVE)
 		return NULL;
@@ -3830,7 +3845,7 @@ __alloc_pages_direct_reclaim(gfp_t gfp_mask, unsigned int order,
 		unsigned int alloc_flags, const struct alloc_context *ac,
 		unsigned long *did_some_progress)
 {
-	pr_info("__alloc_pages_direct_reclaim");
+	// pr_info("__alloc_pages_direct_reclaim");
 	struct page *page = NULL;
 	bool drained = false;
 
@@ -4089,7 +4104,7 @@ check_retry_cpuset(int cpuset_mems_cookie, struct alloc_context *ac)
 
 static inline struct page *
 __alloc_pages_slowpath(gfp_t gfp_mask, unsigned int order,
-						struct alloc_context *ac)
+						struct alloc_context *ac, spinlock_t *lock)
 {
 	bool can_direct_reclaim = gfp_mask & __GFP_DIRECT_RECLAIM;
 	const bool costly_order = order > PAGE_ALLOC_COSTLY_ORDER;
@@ -4102,10 +4117,6 @@ __alloc_pages_slowpath(gfp_t gfp_mask, unsigned int order,
 	int no_progress_loops;
 	unsigned int cpuset_mems_cookie;
 	int reserve_flags;
-	spinlock_t *next_lock;
-	struct rm_entry *rm_entry = NULL;
-	struct rm_entry *aux;
-	struct zone *zones;
 
 	/*
 	 * We also sanity check to catch abuse of atomic reserves being used by
@@ -4141,7 +4152,6 @@ retry_cpuset:
 
 	if (gfp_mask & __GFP_KSWAPD_RECLAIM)
 		wake_all_kswapds(order, gfp_mask, ac);
-
 	/*
 	 * The adjusted alloc_flags might result in immediate success, so try
 	 * that first
@@ -4171,7 +4181,10 @@ retry_cpuset:
 		page = __alloc_pages_direct_compact(gfp_mask, order,
 						alloc_flags, ac,
 						INIT_COMPACT_PRIORITY,
-						&compact_result);
+						&compact_result, lock);
+		if (gfp_mask & __GFP_RESERVE)
+			goto got_pg;
+
 		if (page)
 			goto got_pg;
 
@@ -4234,41 +4247,16 @@ retry:
 	if (current->flags & PF_MEMALLOC)
 		goto nopage;
 
-	// pr_info("order = %d", order);
-	zones = NODE_DATA(numa_node_id())->node_zones;
-	// pr_alert("zone_page_state(&zones[ZONE_NORMAL], NR_FREE_PAGES) = %ld", zone_page_state(&zones[ZONE_NORMAL], NR_FREE_PAGES));
-	// pr_alert("zone_page_state(&zones[ZONE_DMA], NR_FREE_PAGES) = %ld", zone_page_state(&zones[ZONE_DMA], NR_FREE_PAGES));
-	// pr_alert("zone_page_state(&zones[ZONE_DMA32], NR_FREE_PAGES) = %ld", zone_page_state(&zones[ZONE_DMA32], NR_FREE_PAGES));
-	
-	// int num_freed = 0;
-	// spin_lock(&osa_hpage_list_lock);
-	// list_for_each_entry_safe(rm_entry, aux, &osa_hpage_scan_list, osa_hpage_scan_link) {
-	// 	next_lock = &rm_entry->lock;
-	// 	if (spin_trylock(next_lock)) {
-	// 		pr_info("rm_release_reservation_fast rm_entry->head = %ld", page_to_pfn(get_page_from_rm((unsigned long)(rm_entry->next_node))) );
-	// 		rm_release_reservation_fast(rm_entry);
-	// 		spin_unlock(next_lock);
-	// 		num_freed++;
-	// 	}
-	// 	// if (zone_page_state(&zones[ZONE_NORMAL], NR_FREE_PAGES) > high_wmark_pages((&zones[ZONE_NORMAL]))) {
-	// 	// 	// pr_alert("zone_page_state(&zones[ZONE_NORMAL], NR_FREE_PAGES) = %ld", zone_page_state(&zones[ZONE_NORMAL], NR_FREE_PAGES));
-	// 	// 	break;
-	// 	// }
-	// 	if (num_freed > 20)
-	// 		break;
-	// }
-	// spin_unlock(&osa_hpage_list_lock);
-
 	/* Try direct reclaim and then allocating */
 	page = __alloc_pages_direct_reclaim(gfp_mask, order, alloc_flags, ac,
 							&did_some_progress);
 	if (page)
 		goto got_pg;
 
-	pr_info("__alloc_pages_direct_compact");
+	// pr_info("__alloc_pages_direct_compact");
 	/* Try direct compaction and then allocating */
 	page = __alloc_pages_direct_compact(gfp_mask, order, alloc_flags, ac,
-					compact_priority, &compact_result);
+					compact_priority, &compact_result, NULL);
 	if (page)
 		goto got_pg;
 
@@ -4425,13 +4413,12 @@ static inline void finalise_ac(gfp_t gfp_mask, struct alloc_context *ac)
  */
 struct page *
 __alloc_pages_nodemask(gfp_t gfp_mask, unsigned int order, int preferred_nid,
-							nodemask_t *nodemask)
+							nodemask_t *nodemask, spinlock_t *lock)
 {
 	struct page *page;
 	unsigned int alloc_flags = ALLOC_WMARK_LOW;
 	gfp_t alloc_mask; /* The gfp_t that was actually used for allocation */
 	struct alloc_context ac = { };
-	spinlock_t  *next_lock;
 	struct rm_entry *rm_entry, *aux;
 	struct zone *zones;
 	
@@ -4472,7 +4459,7 @@ __alloc_pages_nodemask(gfp_t gfp_mask, unsigned int order, int preferred_nid,
 	if (unlikely(ac.nodemask != nodemask))
 		ac.nodemask = nodemask;
 
-	page = __alloc_pages_slowpath(alloc_mask, order, &ac);
+	page = __alloc_pages_slowpath(alloc_mask, order, &ac, lock);
 
 out:
 	// pr_alert("page = %ld", page_to_pfn(page));

@@ -22,7 +22,7 @@
 struct rm_node* rm_node_create() {
   struct rm_node* new = NULL;
   unsigned int i;
-  new = kmalloc(sizeof(struct rm_node), GFP_KERNEL & ~__GFP_RECLAIM);
+  new = kmalloc(sizeof(struct rm_node), (GFP_KERNEL | __GFP_NOWARN) & ~__GFP_RECLAIM);
   if (new) {
     for (i = 0; i < RT_NODE_RANGE_SIZE; i++) {
       spin_lock_init(&new->items[i].lock);
@@ -147,13 +147,11 @@ extern void rm_release_reservation(struct vm_area_struct *vma, unsigned long add
         put_page(page+i);
       }
     }
-
-    for (i = 0; i < RESERV_NR; i++) {
-      (page+i)->reservation = NULL;
-    }
     // pr_alert("osa_hpage_exit_list release");
     osa_hpage_exit_list(&cur_node->items[index]);
-    cur_node->items[index].next_node = 0; 
+    cur_node->items[index].next_node = 0;
+    for (i = 0; i < RESERV_NR; i++)
+      (page+i)->reservation = NULL;
   }
   spin_unlock(next_lock);
   return;
@@ -227,14 +225,11 @@ extern void rm_release_reservation_fast(struct rm_entry *rm_entry) {
       // }
 
     }
-
-    for (i = 0; i < RESERV_NR; i++) {
-      (page+i)->reservation = NULL;
-    }
-
     rm_entry->next_node = 0;
     rm_entry->part_pop = false;
     list_del(&rm_entry->osa_hpage_scan_link);
+    for (i = 0; i < RESERV_NR; i++)
+      (page+i)->reservation = NULL;
   }
   return;
 }
@@ -351,61 +346,6 @@ struct rm_entry *get_rm_entry_from_reservation(struct vm_area_struct *vma, unsig
   return entry;
 }
 
-struct rm_entry *get_rm_entry_from_reservation_lock(struct vm_area_struct *vma, unsigned long address, unsigned long **_mask) {
-  int retPrmtHugePage;
-
-  unsigned char level;
-  unsigned int i;
-  unsigned int index;
-
-  struct rm_node *cur_node = GET_RM_ROOT(vma);
-  struct rm_node *next_node;
-  struct rm_entry *entry;
-  
-  unsigned long leaf_value;
-  unsigned long *mask;
-
-  struct page *page, *head;
-  spinlock_t  *next_lock;
-
-	unsigned long haddr = address & RESERV_MASK; 
-  int region_offset   = (address & (~RESERV_MASK)) >> PAGE_SHIFT;
-
-  if (cur_node == NULL) 
-    return NULL;
-  if (!vma_is_anonymous(vma)) {
-    return NULL;
-  }
-
-  // traverse the reservation map radix tree
-  // firstly, go through all levels but don't go to the leaf node
-  for (level = 1; level < NUM_RT_LEVELS; level++) {
-    index = get_node_index(level, address);
-    next_lock = &cur_node->items[index].lock;
-
-    spin_lock(next_lock);
-    if (cur_node->items[index].next_node == NULL) {
-      cur_node->items[index].next_node = rm_node_create();
-    }
-    spin_unlock(next_lock);
-    cur_node = cur_node->items[index].next_node;
-
-  }
-
-  // secondly, process the leaf node
-  level = NUM_RT_LEVELS;
-  index = get_node_index(level, address); 
-  next_lock = &cur_node->items[index].lock;
-
-  spin_lock(next_lock);
-  entry = &cur_node->items[index];
-  if (entry->next_node == 0) {
-    bitmap_zero(entry->mask, 512);
-  }
-  *_mask = entry->mask;
-  return entry;
-}
-
 struct page *rm_alloc_from_reservation(struct vm_area_struct *vma, unsigned long address, bool *out) {
   int retPrmtHugePage;
   *out = false;
@@ -424,7 +364,7 @@ struct page *rm_alloc_from_reservation(struct vm_area_struct *vma, unsigned long
   struct page *head, *page;
   spinlock_t  *next_lock;
 
-  gfp_t gfp           = ((GFP_HIGHUSER | __GFP_NOMEMALLOC | __GFP_NOWARN) & ~__GFP_DIRECT_RECLAIM);
+  gfp_t gfp           = ((GFP_HIGHUSER | __GFP_NOMEMALLOC | __GFP_NOWARN | __GFP_RESERVE));
 	unsigned long haddr = address & RESERV_MASK;
   int region_offset   = (address & (~RESERV_MASK)) >> PAGE_SHIFT;
   
@@ -464,16 +404,17 @@ struct page *rm_alloc_from_reservation(struct vm_area_struct *vma, unsigned long
       goto out_unlock;
     }
     // allocate pages 
-    page = alloc_pages_vma(gfp, RESERV_ORDER, vma, haddr, numa_node_id(), false);
+    page = alloc_pages_vma(gfp, RESERV_ORDER, vma, haddr, numa_node_id(), false, next_lock);
     if (!page) {
-			pr_alert("alloc_pages_vma FAILED");
+			// pr_alert("alloc_pages_vma FAILED");
       goto out_unlock;
     }
-    for (i = 0; i < RESERV_NR; i++) {
-      set_page_count(page + i, 1);
-      (page+i)->reservation = 666;
-    }
-    // clear_huge_page(page, haddr, HPAGE_PMD_NR);
+
+    // for (i = 0; i < RESERV_NR; i++) {
+    //   set_page_count(page + i, 1);
+    //   (page+i)->reservation = 666;
+    // }
+    
     // create a leaf node
     leaf_value = create_value(page);
     bitmap_zero(mask, 512);
@@ -539,17 +480,6 @@ void rm_destroy(struct rm_node *node, unsigned char level) { //not thread-safe
         // pr_alert("osa_hpage_exit_list destroy");
         osa_hpage_exit_list(&cur_node->items[index]);
         page = get_page_from_rm(leaf_value);
-        for (i = 0; i < RESERV_NR; i++) {
-          (page+i)->reservation = NULL;
-        }
-
-        // unused = 512 - bitmap_weight(mask, 512);
-        // if (unused) {
-        //   mod_node_page_state(page_pgdat(page), NR_MEM_RESERVATIONS_RESERVED, -unused);
-        // }
-        #ifdef DEBUG_RESERV_THP
-        pr_info("rm_destroy PageTransCompound(page) = %d page_to_pfn(page) = %lx  PageActive(page) = %d PageLRU(page) = %d page_count(page) = %d total_mapcount(page) = %d", PageTransCompound(page), page_to_pfn(page), PageActive(page), PageLRU(page), page_count(page), total_mapcount(page));
-        #endif
         if (PageTransCompound(page)) {
           #ifdef DEBUG_RESERV_THP
           for (i = 0; i < RESERV_NR; i++) {
@@ -567,6 +497,8 @@ void rm_destroy(struct rm_node *node, unsigned char level) { //not thread-safe
           // #endif
         }
         // spin_unlock(next_lock);
+        for (i = 0; i < RESERV_NR; i++)
+          (page+i)->reservation = NULL;
       }
     }
   }

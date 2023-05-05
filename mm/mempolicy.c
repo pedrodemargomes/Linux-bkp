@@ -2078,7 +2078,7 @@ static struct page *alloc_page_interleave(gfp_t gfp, unsigned order,
  */
 struct page *
 alloc_pages_vma(gfp_t gfp, int order, struct vm_area_struct *vma,
-		unsigned long addr, int node, bool hugepage)
+		unsigned long addr, int node, bool hugepage, spinlock_t *lock)
 {
 	struct mempolicy *pol;
 	struct page *page;
@@ -2152,7 +2152,7 @@ alloc_pages_vma(gfp_t gfp, int order, struct vm_area_struct *vma,
 
 	nmask = policy_nodemask(gfp, pol);
 	preferred_nid = policy_node(gfp, pol, node);
-	page = __alloc_pages_nodemask(gfp, order, preferred_nid, nmask);
+	page = __alloc_pages_nodemask(gfp, order, preferred_nid, nmask, lock);
 	mpol_cond_put(pol);
 out:
 	return page;
@@ -2190,7 +2190,7 @@ struct page *alloc_pages_current(gfp_t gfp, unsigned order)
 	else
 		page = __alloc_pages_nodemask(gfp, order,
 				policy_node(gfp, pol, numa_node_id()),
-				policy_nodemask(gfp, pol));
+				policy_nodemask(gfp, pol), NULL);
 
 	return page;
 }

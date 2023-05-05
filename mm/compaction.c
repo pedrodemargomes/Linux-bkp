@@ -902,6 +902,10 @@ isolate_migratepages_block(struct compact_control *cc, unsigned long low_pfn,
 				NR_ISOLATED_ANON + page_is_file_cache(page));
 
 isolate_success:
+		// if ((int)page->reservation == 666) {
+		// 	pr_alert("FAIL isolate_migratepages_block reserved page_count(page) = %d total_mapcount(page) = %d page_mapping(page) = %p page_to_pfn(page) = %lx", page_count(page), total_mapcount(page), page_mapping(page), page_to_pfn(page));
+		// 	page->reservation = 665;
+		// }
 		list_add(&page->lru, &cc->migratepages);
 		cc->nr_migratepages++;
 		nr_isolated++;
@@ -1291,6 +1295,9 @@ static isolate_migrate_t isolate_migratepages(struct zone *zone,
 		if (!page)
 			continue;
 
+		if (page->reservation == 666)
+			continue;
+
 		/* If isolation recently failed, do not retry */
 		if (!isolation_suitable(cc, page)) {
 			continue;
@@ -1655,6 +1662,8 @@ static enum compact_result compact_zone(struct zone *zone, struct compact_contro
 	unsigned long start_pfn = zone->zone_start_pfn;
 	unsigned long end_pfn = zone_end_pfn(zone);
 	const bool sync = cc->mode != MIGRATE_ASYNC;
+
+	// pr_info("compact_zone start_pfn = %ld end_pfn = %ld zone->name = %s", start_pfn, end_pfn, zone->name);
 
 	/*
 	 * These counters track activities during zone compaction.  Initialize
@@ -2196,6 +2205,7 @@ void wakeup_kcompactd(pg_data_t *pgdat, int order, int classzone_idx)
 
 	trace_mm_compaction_wakeup_kcompactd(pgdat->node_id, order,
 							classzone_idx);
+	// pr_info("wakeup_kcompactd order = %d", order);
 	wake_up_interruptible(&pgdat->kcompactd_wait);
 }
 

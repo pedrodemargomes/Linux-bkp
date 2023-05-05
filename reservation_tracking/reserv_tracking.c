@@ -172,7 +172,7 @@ void osa_hpage_do_scan(void)
 	}
 	spin_unlock(&osa_hpage_list_lock);
 
-	pr_info("list_size = %d", list_size);
+	// pr_info("list_size = %d", list_size);
 
 	return;
 }
@@ -247,14 +247,14 @@ static int __init osa_hugepage_init(void)
 
 	INIT_LIST_HEAD(&osa_hpage_scan_list);
 
-	err = start_stop_osa_hpage_scand();
-	if (err)
-		goto err_sysfs;
+	// err = start_stop_osa_hpage_scand();
+	// if (err)
+	// 	goto err_sysfs;
 
-	/* init sysfs */
-	err = reserve_tracking_init_sysfs();
-	if (err)
-		goto err_sysfs;
+	// /* init sysfs */
+	// err = reserve_tracking_init_sysfs();
+	// if (err)
+	// 	goto err_sysfs;
 
 	return 0;
 

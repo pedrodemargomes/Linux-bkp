@@ -3371,6 +3371,10 @@ static vm_fault_t do_anonymous_page(struct vm_fault *vmf)
 	pte_t entry;
 	bool out = false;
 	int i;
+	spinlock_t *next_lock;
+	struct rm_entry *rm_entry = NULL;
+	struct rm_entry *aux;
+	struct zone *zones;
 
 	/* File mapping without ->vm_ops ? */
 	if (vma->vm_flags & VM_SHARED)
@@ -3430,6 +3434,36 @@ static vm_fault_t do_anonymous_page(struct vm_fault *vmf)
 		page = rm_alloc_from_reservation(vma, vmf->address, &out);
 		if (out)
 			return 0;
+
+		if (!page) {
+			// pr_info("order = %d", order);
+			zones = NODE_DATA(numa_node_id())->node_zones;
+			// pr_alert("zone_page_state(&zones[ZONE_NORMAL], NR_FREE_PAGES) = %ld", zone_page_state(&zones[ZONE_NORMAL], NR_FREE_PAGES));
+			// pr_alert("zone_page_state(&zones[ZONE_DMA], NR_FREE_PAGES) = %ld", zone_page_state(&zones[ZONE_DMA], NR_FREE_PAGES));
+			// pr_alert("zone_page_state(&zones[ZONE_DMA32], NR_FREE_PAGES) = %ld", zone_page_state(&zones[ZONE_DMA32], NR_FREE_PAGES));
+			
+			int num_freed = 0;
+			spin_lock(&osa_hpage_list_lock);
+			list_for_each_entry_safe(rm_entry, aux, &osa_hpage_scan_list, osa_hpage_scan_link) {
+				next_lock = &rm_entry->lock;
+				if (spin_trylock(next_lock)) {
+					pr_info("rm_release_reservation_fast rm_entry->head = %ld", page_to_pfn(get_page_from_rm((unsigned long)(rm_entry->next_node))) );
+					rm_release_reservation_fast(rm_entry);
+					spin_unlock(next_lock);
+					num_freed++;
+				}
+				// if (zone_page_state(&zones[ZONE_NORMAL], NR_FREE_PAGES) > high_wmark_pages((&zones[ZONE_NORMAL]))) {
+				// 	// pr_alert("zone_page_state(&zones[ZONE_NORMAL], NR_FREE_PAGES) = %ld", zone_page_state(&zones[ZONE_NORMAL], NR_FREE_PAGES));
+				// 	break;
+				// }
+				if (num_freed > 10)
+					break;
+			}
+			spin_unlock(&osa_hpage_list_lock);
+			page = rm_alloc_from_reservation(vma, vmf->address, &out);
+			if (out)
+				return 0;
+		}
 	} else {
 		page = NULL;
 	}
@@ -4551,7 +4585,7 @@ static vm_fault_t __handle_mm_fault(struct vm_area_struct *vma,
 		spin_lock(&rm_entry->lock);
 
 		if (!rm_entry->next_node) {
-			pr_alert("!rm_entry->next_node");
+			// pr_alert("!rm_entry->next_node");
 			goto out;
 		}
 

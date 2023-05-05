@@ -76,7 +76,6 @@ extern void rm_destroy(struct rm_node *node, unsigned char level);
 
 extern int get_mask_weight_from_reservation(struct vm_area_struct *vma, unsigned long address);
 struct rm_entry *get_rm_entry_from_reservation(struct vm_area_struct *vma, unsigned long address, unsigned long **_mask);
-struct rm_entry *get_rm_entry_from_reservation_lock(struct vm_area_struct *vma, unsigned long address, unsigned long **_mask);
 
 extern void rm_release_reservation(struct vm_area_struct *vma, unsigned long address);
 extern void rm_release_reservation_fast(struct rm_entry *rm_entry);
