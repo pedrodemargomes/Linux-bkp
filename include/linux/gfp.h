@@ -7,6 +7,7 @@
 #include <linux/stddef.h>
 #include <linux/linkage.h>
 #include <linux/topology.h>
+#include <linux/compaction.h>
 
 struct vm_area_struct;
 
@@ -491,12 +492,12 @@ static inline void arch_alloc_page(struct page *page, int order) { }
 
 struct page *
 __alloc_pages_nodemask(gfp_t gfp_mask, unsigned int order, int preferred_nid,
-							nodemask_t *nodemask, spinlock_t *lock);
+							nodemask_t *nodemask);
 
 static inline struct page *
 __alloc_pages(gfp_t gfp_mask, unsigned int order, int preferred_nid)
 {
-	return __alloc_pages_nodemask(gfp_mask, order, preferred_nid, NULL, NULL);
+	return __alloc_pages_nodemask(gfp_mask, order, preferred_nid, NULL);
 }
 
 /*
@@ -536,9 +537,10 @@ alloc_pages(gfp_t gfp_mask, unsigned int order)
 }
 extern struct page *alloc_pages_vma(gfp_t gfp_mask, int order,
 			struct vm_area_struct *vma, unsigned long addr,
-			int node, bool hugepage, spinlock_t *next_lock);
-#define alloc_hugepage_vma(gfp_mask, vma, addr, order)	\
-	alloc_pages_vma(gfp_mask, order, vma, addr, numa_node_id(), true, NULL)
+			int node, bool hugepage);
+#define alloc_hugepage_vma(gfp_mask, vma, addr, order) ({ \
+	alloc_pages_vma(gfp_mask, order, vma, addr, numa_node_id(), true); \
+})
 #else
 #define alloc_pages(gfp_mask, order) \
 		alloc_pages_node(numa_node_id(), gfp_mask, order)
@@ -548,11 +550,12 @@ extern struct page *alloc_pages_vma(gfp_t gfp_mask, int order,
 	alloc_pages(gfp_mask, order)
 #endif
 #define alloc_page(gfp_mask) alloc_pages(gfp_mask, 0)
-#define alloc_page_vma(gfp_mask, vma, addr)			\
-	alloc_pages_vma(gfp_mask, 0, vma, addr, numa_node_id(), false, NULL)
-#define alloc_page_vma_node(gfp_mask, vma, addr, node)		\
-	alloc_pages_vma(gfp_mask, 0, vma, addr, node, false, NULL)
-
+#define alloc_page_vma(gfp_mask, vma, addr) ({ \
+	alloc_pages_vma(gfp_mask, 0, vma, addr, numa_node_id(), false); \
+})
+#define alloc_page_vma_node(gfp_mask, vma, addr, node) ({ \
+	alloc_pages_vma(gfp_mask, 0, vma, addr, node, false); \
+})
 extern unsigned long __get_free_pages(gfp_t gfp_mask, unsigned int order);
 extern unsigned long get_zeroed_page(gfp_t gfp_mask);
 

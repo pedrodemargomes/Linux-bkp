@@ -3370,6 +3370,7 @@ static vm_fault_t do_anonymous_page(struct vm_fault *vmf)
 	vm_fault_t ret = 0;
 	pte_t entry;
 	bool out = false;
+	bool err_alloc = false;
 	int i;
 	spinlock_t *next_lock;
 	struct rm_entry *rm_entry = NULL;
@@ -3400,24 +3401,24 @@ static vm_fault_t do_anonymous_page(struct vm_fault *vmf)
 		return 0;
 
 	/* Use the zero-page for reads */
-	if (!(vmf->flags & FAULT_FLAG_WRITE) &&
-			!mm_forbids_zeropage(vma->vm_mm)) {
-		entry = pte_mkspecial(pfn_pte(my_zero_pfn(vmf->address),
-						vma->vm_page_prot));
-		vmf->pte = pte_offset_map_lock(vma->vm_mm, vmf->pmd,
-				vmf->address, &vmf->ptl);
-		if (!pte_none(*vmf->pte))
-			goto unlock;
-		ret = check_stable_address_space(vma->vm_mm);
-		if (ret)
-			goto unlock;
-		/* Deliver the page fault to userland, check inside PT lock */
-		if (userfaultfd_missing(vma)) {
-			pte_unmap_unlock(vmf->pte, vmf->ptl);
-			return handle_userfault(vmf, VM_UFFD_MISSING);
-		}
-		goto setpte;
-	}
+	// if (!(vmf->flags & FAULT_FLAG_WRITE) &&
+	// 		!mm_forbids_zeropage(vma->vm_mm)) {
+	// 	entry = pte_mkspecial(pfn_pte(my_zero_pfn(vmf->address),
+	// 					vma->vm_page_prot));
+	// 	vmf->pte = pte_offset_map_lock(vma->vm_mm, vmf->pmd,
+	// 			vmf->address, &vmf->ptl);
+	// 	if (!pte_none(*vmf->pte))
+	// 		goto unlock;
+	// 	ret = check_stable_address_space(vma->vm_mm);
+	// 	if (ret)
+	// 		goto unlock;
+	// 	/* Deliver the page fault to userland, check inside PT lock */
+	// 	if (userfaultfd_missing(vma)) {
+	// 		pte_unmap_unlock(vmf->pte, vmf->ptl);
+	// 		return handle_userfault(vmf, VM_UFFD_MISSING);
+	// 	}
+	// 	goto setpte;
+	// }
 
 	/* Allocate our own private page. */
 
@@ -3431,23 +3432,22 @@ static vm_fault_t do_anonymous_page(struct vm_fault *vmf)
 	}
 	// pr_alert("> vma->vm_mm->owner->cred->uid = %ld", vma->vm_mm->owner->cred->uid);
 	if (GET_RM_ROOT(vma) /*&& !uid_eq(vma->vm_mm->owner->cred->uid, GLOBAL_ROOT_UID)*/ ) {
-		page = rm_alloc_from_reservation(vma, vmf->address, &out);
+		page = rm_alloc_from_reservation(vma, vmf->address, &out, &err_alloc, ((GFP_HIGHUSER | __GFP_NOMEMALLOC | __GFP_NOWARN | __GFP_RESERVE) & ~__GFP_RECLAIM));
 		if (out)
 			return 0;
 
-		if (!page) {
-			// pr_info("order = %d", order);
-			zones = NODE_DATA(numa_node_id())->node_zones;
-			// pr_alert("zone_page_state(&zones[ZONE_NORMAL], NR_FREE_PAGES) = %ld", zone_page_state(&zones[ZONE_NORMAL], NR_FREE_PAGES));
-			// pr_alert("zone_page_state(&zones[ZONE_DMA], NR_FREE_PAGES) = %ld", zone_page_state(&zones[ZONE_DMA], NR_FREE_PAGES));
-			// pr_alert("zone_page_state(&zones[ZONE_DMA32], NR_FREE_PAGES) = %ld", zone_page_state(&zones[ZONE_DMA32], NR_FREE_PAGES));
+		if (err_alloc) {
+			// zones = NODE_DATA(numa_node_id())->node_zones;
+			// pr_info("zone_page_state(&zones[ZONE_NORMAL], NR_FREE_PAGES) = %ld", zone_page_state(&zones[ZONE_NORMAL], NR_FREE_PAGES));
+			// pr_info("zone_page_state(&zones[ZONE_DMA], NR_FREE_PAGES) = %ld", zone_page_state(&zones[ZONE_DMA], NR_FREE_PAGES));
+			// pr_info("zone_page_state(&zones[ZONE_DMA32], NR_FREE_PAGES) = %ld", zone_page_state(&zones[ZONE_DMA32], NR_FREE_PAGES));
 			
 			int num_freed = 0;
 			spin_lock(&osa_hpage_list_lock);
 			list_for_each_entry_safe(rm_entry, aux, &osa_hpage_scan_list, osa_hpage_scan_link) {
 				next_lock = &rm_entry->lock;
 				if (spin_trylock(next_lock)) {
-					pr_info("rm_release_reservation_fast rm_entry->head = %ld", page_to_pfn(get_page_from_rm((unsigned long)(rm_entry->next_node))) );
+					// pr_info("rm_release_reservation_fast rm_entry->head = %ld", page_to_pfn(get_page_from_rm((unsigned long)(rm_entry->next_node))) );
 					rm_release_reservation_fast(rm_entry);
 					spin_unlock(next_lock);
 					num_freed++;
@@ -3460,9 +3460,6 @@ static vm_fault_t do_anonymous_page(struct vm_fault *vmf)
 					break;
 			}
 			spin_unlock(&osa_hpage_list_lock);
-			page = rm_alloc_from_reservation(vma, vmf->address, &out);
-			if (out)
-				return 0;
 		}
 	} else {
 		page = NULL;
@@ -3476,6 +3473,13 @@ static vm_fault_t do_anonymous_page(struct vm_fault *vmf)
 	if (!page)
 		goto oom;
 
+	// #ifdef DEBUG_RESERV_THP
+	if (PageTransCompound(page)) {
+		pr_alert("memory.c after __SetPageUptodate PageTransCompound(page) == true page_to_pfn(page) = %lx", page_to_pfn(page));
+		return 0;
+	}
+	// #endif
+
 	if (mem_cgroup_try_charge_delay(page, vma->vm_mm, GFP_KERNEL, &memcg,
 					false))
 		goto oom_free_page;
@@ -3486,12 +3490,6 @@ static vm_fault_t do_anonymous_page(struct vm_fault *vmf)
 	 * the set_pte_at() write.
 	 */
 	__SetPageUptodate(page);
-
-	#ifdef DEBUG_RESERV_THP
-	if (PageTransCompound(page)) {
-		pr_alert("memory.c after __SetPageUptodate PageTransCompound(page) == true");
-	}
-	#endif
 
 	entry = mk_pte(page, vma->vm_page_prot);
 	if (vma->vm_flags & VM_WRITE)
@@ -4545,88 +4543,99 @@ static vm_fault_t __handle_mm_fault(struct vm_area_struct *vma,
 		pr_alert("!vmf.pmd");
 		return VM_FAULT_OOM;
 	}
-	// if (pmd_none(*vmf.pmd) && __transparent_hugepage_enabled(vma)) {
-	// 	ret = create_huge_pmd(&vmf);
-	// 	if (!(ret & VM_FAULT_FALLBACK))
-	// 		return ret;
-	// } else {
-	// 	pmd_t orig_pmd = *vmf.pmd;
+	if (pmd_none(*vmf.pmd) && __transparent_hugepage_enabled(vma)) {
+		ret = create_huge_pmd(&vmf);
+		if (!(ret & VM_FAULT_FALLBACK))
+			return ret;
+	} else {
+		pmd_t orig_pmd = *vmf.pmd;
 
-	// 	barrier();
-	// 	if (unlikely(is_swap_pmd(orig_pmd))) {
-	// 		VM_BUG_ON(thp_migration_supported() &&
-	// 				  !is_pmd_migration_entry(orig_pmd));
-	// 		if (is_pmd_migration_entry(orig_pmd))
-	// 			pmd_migration_entry_wait(mm, vmf.pmd);
-	// 		return 0;
-	// 	}
-	// 	if (pmd_trans_huge(orig_pmd) || pmd_devmap(orig_pmd)) {
-	// 		if (pmd_protnone(orig_pmd) && vma_is_accessible(vma))
-	// 			return do_huge_pmd_numa_page(&vmf, orig_pmd);
-
-	// 		if (dirty && !pmd_write(orig_pmd)) {
-	// 			ret = wp_huge_pmd(&vmf, orig_pmd);
-	// 			if (!(ret & VM_FAULT_FALLBACK))
-	// 				return ret;
-	// 		} else {
-	// 			huge_pmd_set_accessed(&vmf, orig_pmd);
-	// 			return 0;
-	// 		}
-	// 	}
-	// }
-
-	unsigned long *mask = NULL;
-	hstart = (vma->vm_start + ~HPAGE_PMD_MASK) & HPAGE_PMD_MASK;
-	hend = vma->vm_end & HPAGE_PMD_MASK;
-	rm_entry = get_rm_entry_from_reservation(vma, vmf.address, &mask);
-	if (!(address < hstart || address + HPAGE_PMD_SIZE > hend) && rm_entry && mask != NULL && bitmap_weight(mask, 512) > 64) {
-		up_read(&mm->mmap_sem);
-		down_write(&mm->mmap_sem);
-		spin_lock(&rm_entry->lock);
-
-		if (!rm_entry->next_node) {
-			// pr_alert("!rm_entry->next_node");
-			goto out;
-		}
-
-		int result = hugepage_vma_revalidate(mm, vmf.address, &vma);
-		if (result) {
-			// pr_info("goto out hugepage_vma_revalidate");
-			goto out;
-		}
-
-		// mask = NULL;
-		// rm_entry = get_rm_entry_from_reservation(vma, vmf.address, &mask);
-		// if (!rm_entry || (address < hstart || address + HPAGE_PMD_SIZE > hend) || mask == NULL || bitmap_weight(mask, 512) <= 64) {
-		// 	pr_alert("goto out rm_entry");
-		// 	goto out;
-		// }
-
-		lru_add_drain_all(); // drena os LRUs
-		
-		unsigned long haddr = vmf.address & RESERV_MASK;
-		struct page *head = get_page_from_rm((unsigned long) rm_entry->next_node);
-		// pr_info("page_to_pfn(head) = %lx rm_entry->next_node = %p haddr = %lx mask = %d", page_to_pfn(head),  rm_entry->next_node, haddr, bitmap_weight(mask, 512));
-		if (PageTransCompound(head)) {
-			spin_unlock(&rm_entry->lock);
-			up_write(&mm->mmap_sem);
-			// pr_info("return VM_FAULT_RETRY;");
-			return VM_FAULT_RETRY;
-		}
-		
-		int retPrmtHugePage = promote_huge_page_address(vma, head, haddr);
-		if (!retPrmtHugePage) {
-			osa_hpage_exit_list(rm_entry);
-			spin_unlock(&rm_entry->lock);
-			up_write(&mm->mmap_sem);
-			down_read(&mm->mmap_sem);
+		barrier();
+		if (unlikely(is_swap_pmd(orig_pmd))) {
+			VM_BUG_ON(thp_migration_supported() &&
+					  !is_pmd_migration_entry(orig_pmd));
+			if (is_pmd_migration_entry(orig_pmd))
+				pmd_migration_entry_wait(mm, vmf.pmd);
 			return 0;
-		} 
-out:
-		spin_unlock(&rm_entry->lock);
-		up_write(&mm->mmap_sem);
-		down_read(&mm->mmap_sem);
+		}
+		if (pmd_trans_huge(orig_pmd) || pmd_devmap(orig_pmd)) {
+			if (pmd_protnone(orig_pmd) && vma_is_accessible(vma))
+				return do_huge_pmd_numa_page(&vmf, orig_pmd);
+
+			if (dirty && !pmd_write(orig_pmd)) {
+				ret = wp_huge_pmd(&vmf, orig_pmd);
+				if (!(ret & VM_FAULT_FALLBACK))
+					return ret;
+			} else {
+				huge_pmd_set_accessed(&vmf, orig_pmd);
+				return 0;
+			}
+		}
 	}
+
+// 	unsigned long *mask = NULL;
+// 	hstart = (vma->vm_start + ~HPAGE_PMD_MASK) & HPAGE_PMD_MASK;
+// 	hend = vma->vm_end & HPAGE_PMD_MASK;
+// 	rm_entry = get_rm_entry_from_reservation(vma, vmf.address, &mask);
+// 	if (!(address < hstart || address + HPAGE_PMD_SIZE > hend) && rm_entry && mask != NULL && bitmap_weight(mask, 512) > 64) {
+// 		up_read(&mm->mmap_sem);
+// 		down_write(&mm->mmap_sem);
+// 		rm_entry = get_rm_entry_from_reservation(vma, vmf.address, &mask);
+// 		spin_lock(&rm_entry->lock);
+
+// 		if ( !(!(address < hstart || address + HPAGE_PMD_SIZE > hend) && rm_entry && rm_entry->mask != NULL && bitmap_weight(rm_entry->mask, 512) > 64) ) {
+// 			pr_alert("+++");
+// 			goto out;
+// 		}
+
+// 		if (is_invalid_rm((unsigned long) rm_entry->next_node))
+// 			pr_alert("is_invalid_rm");
+
+// 		if (!rm_entry->next_node) {
+// 			// pr_alert("!rm_entry->next_node");
+// 			goto out;
+// 		}
+
+// 		int result = hugepage_vma_revalidate(mm, vmf.address, &vma);
+// 		if (result) {
+// 			// pr_info("goto out hugepage_vma_revalidate");
+// 			goto out;
+// 		}
+
+// 		// mask = NULL;
+// 		// rm_entry = get_rm_entry_from_reservation(vma, vmf.address, &mask);
+// 		// if (!rm_entry || (address < hstart || address + HPAGE_PMD_SIZE > hend) || mask == NULL || bitmap_weight(mask, 512) <= 64) {
+// 		// 	pr_alert("goto out rm_entry");
+// 		// 	goto out;
+// 		// }
+
+// 		lru_add_drain_all(); // drena os LRUs
+		
+// 		unsigned long haddr = vmf.address & RESERV_MASK;
+// 		struct page *head = get_page_from_rm((unsigned long) rm_entry->next_node);
+// 		// pr_info("page_to_pfn(head) = %lx rm_entry->next_node = %p haddr = %lx mask = %d", page_to_pfn(head),  rm_entry->next_node, haddr, bitmap_weight(mask, 512));
+// 		if (PageTransCompound(head)) {
+// 			spin_unlock(&rm_entry->lock);
+// 			up_write(&mm->mmap_sem);
+// 			// pr_info("return VM_FAULT_RETRY");
+// 			return VM_FAULT_RETRY;
+// 		}
+		
+// 		pr_info("promote_huge_page_address try to promote page_to_pfn(head) = %lx haddr = %lx mask weight = %d", page_to_pfn(head), haddr, bitmap_weight(mask, 512));
+// 		int retPrmtHugePage = promote_huge_page_address(vma, head, haddr);
+// 		if (!retPrmtHugePage) {
+// 			pr_info("promote_huge_page_address SUCCESS page_to_pfn(head) = %lx haddr = %lx mask weight = %d", page_to_pfn(head), haddr, bitmap_weight(mask, 512));
+// 			osa_hpage_exit_list(rm_entry);
+// 			spin_unlock(&rm_entry->lock);
+// 			up_write(&mm->mmap_sem);
+// 			down_read(&mm->mmap_sem);
+// 			return 0;
+// 		} 
+// out:
+// 		spin_unlock(&rm_entry->lock);
+// 		up_write(&mm->mmap_sem);
+// 		down_read(&mm->mmap_sem);
+// 	}
 
 	ret = handle_pte_fault(&vmf);
 

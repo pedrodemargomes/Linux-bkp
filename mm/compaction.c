@@ -1925,6 +1925,7 @@ enum compact_result try_to_compact_pages(gfp_t gfp_mask, unsigned int order,
 			 * so we defer compaction there. If it ends up
 			 * succeeding after all, it will be reset.
 			 */
+			pr_info("defer_compaction");
 			defer_compaction(zone, order);
 
 		/*

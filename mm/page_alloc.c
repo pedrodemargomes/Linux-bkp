@@ -3597,27 +3597,19 @@ out:
 static struct page *
 __alloc_pages_direct_compact(gfp_t gfp_mask, unsigned int order,
 		unsigned int alloc_flags, const struct alloc_context *ac,
-		enum compact_priority prio, enum compact_result *compact_result, spinlock_t *lock)
+		enum compact_priority prio, enum compact_result *compact_result)
 {
-	pr_info("__alloc_pages_direct_compact");
+	// pr_info("__alloc_pages_direct_compact");
 	struct page *page;
 	unsigned int noreclaim_flag;
 
 	if (!order)
 		return NULL;
 
-	if (gfp_mask & __GFP_RESERVE)
-		spin_unlock(lock);
-
 	noreclaim_flag = memalloc_noreclaim_save();
 	*compact_result = try_to_compact_pages(gfp_mask, order, alloc_flags, ac,
 									prio);
 	memalloc_noreclaim_restore(noreclaim_flag);
-
-	if (gfp_mask & __GFP_RESERVE) {
-		pr_info("compact_result = %d", *compact_result);
-		return NULL;
-	}
 
 	if (*compact_result <= COMPACT_INACTIVE)
 		return NULL;
@@ -4104,7 +4096,7 @@ check_retry_cpuset(int cpuset_mems_cookie, struct alloc_context *ac)
 
 static inline struct page *
 __alloc_pages_slowpath(gfp_t gfp_mask, unsigned int order,
-						struct alloc_context *ac, spinlock_t *lock)
+						struct alloc_context *ac)
 {
 	bool can_direct_reclaim = gfp_mask & __GFP_DIRECT_RECLAIM;
 	const bool costly_order = order > PAGE_ALLOC_COSTLY_ORDER;
@@ -4177,13 +4169,11 @@ retry_cpuset:
 			   (order > 0 && ac->migratetype != MIGRATE_MOVABLE))
 			&& !gfp_pfmemalloc_allowed(gfp_mask)) {
 
-		pr_info("__alloc_pages_direct_compact if");
+		// pr_info("__alloc_pages_direct_compact if");
 		page = __alloc_pages_direct_compact(gfp_mask, order,
 						alloc_flags, ac,
 						INIT_COMPACT_PRIORITY,
-						&compact_result, lock);
-		if (gfp_mask & __GFP_RESERVE)
-			goto got_pg;
+						&compact_result);
 
 		if (page)
 			goto got_pg;
@@ -4256,7 +4246,7 @@ retry:
 	// pr_info("__alloc_pages_direct_compact");
 	/* Try direct compaction and then allocating */
 	page = __alloc_pages_direct_compact(gfp_mask, order, alloc_flags, ac,
-					compact_priority, &compact_result, NULL);
+					compact_priority, &compact_result);
 	if (page)
 		goto got_pg;
 
@@ -4413,7 +4403,7 @@ static inline void finalise_ac(gfp_t gfp_mask, struct alloc_context *ac)
  */
 struct page *
 __alloc_pages_nodemask(gfp_t gfp_mask, unsigned int order, int preferred_nid,
-							nodemask_t *nodemask, spinlock_t *lock)
+							nodemask_t *nodemask)
 {
 	struct page *page;
 	unsigned int alloc_flags = ALLOC_WMARK_LOW;
@@ -4459,7 +4449,7 @@ __alloc_pages_nodemask(gfp_t gfp_mask, unsigned int order, int preferred_nid,
 	if (unlikely(ac.nodemask != nodemask))
 		ac.nodemask = nodemask;
 
-	page = __alloc_pages_slowpath(alloc_mask, order, &ac, lock);
+	page = __alloc_pages_slowpath(alloc_mask, order, &ac);
 
 out:
 	// pr_alert("page = %ld", page_to_pfn(page));

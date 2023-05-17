@@ -156,7 +156,7 @@ void osa_hpage_do_scan(void)
 		list_size++;
 		timestamp = rm_entry->timestamp;
 		if (jiffies_to_msecs(jiffies) - timestamp > 5000) {
-			// pr_alert("timestamp = %u", jiffies_to_msecs(jiffies) - timestamp);
+			pr_alert("timestamp = %u", jiffies_to_msecs(jiffies) - timestamp);
 
 			next_lock = &rm_entry->lock;
 			if (spin_trylock(next_lock)) {
@@ -165,14 +165,14 @@ void osa_hpage_do_scan(void)
 				spin_unlock(next_lock);
 				num_freed++;
 			}
-			if (num_freed > 1000)
+			if (num_freed > 100)
 				break;
 
 		}
 	}
 	spin_unlock(&osa_hpage_list_lock);
 
-	// pr_info("list_size = %d", list_size);
+	pr_info("num_freed = %d", num_freed);
 
 	return;
 }

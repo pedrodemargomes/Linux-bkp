@@ -26,11 +26,11 @@
 #define GET_RM_ROOT(vma)      (vma->vm_mm->memory_reservations)
 
 struct rm_entry {
+  struct list_head osa_hpage_scan_link;
   void       *next_node;
   spinlock_t lock;
   unsigned int timestamp;
   bool part_pop;
-  struct list_head osa_hpage_scan_link;
   DECLARE_BITMAP(mask, 512); // unsigned long *
 };
 
@@ -64,13 +64,29 @@ static inline unsigned char get_mask_from_rm(unsigned long leaf_value) {
   return (unsigned char)(leaf_value >> 56);
 }
 
+static inline bool is_invalid_rm(unsigned long leaf_value) {
+  return (bool)(leaf_value & (1L << 56));
+}
+
+static inline unsigned long mark_invalid_rm(unsigned long leaf_value) {
+  leaf_value |= (1L << 56); 
+  return leaf_value;
+}
+
+static inline unsigned long mark_valid_rm(unsigned long leaf_value) {
+  leaf_value &= ~(1L << 56); 
+  return leaf_value;
+}
+
+// 0x8000000000000000
+
 // static inline unsigned long update_mask(unsigned long leaf_value, unsigned char new_mask) {
 //   struct page *page = get_page_from_rm(leaf_value); 
 //   return create_value(page, new_mask);
 // }
 
 extern struct rm_node *rm_node_create(void); 
-extern struct page *rm_alloc_from_reservation(struct vm_area_struct *vma, unsigned long address, bool *out);
+extern struct page *rm_alloc_from_reservation(struct vm_area_struct *vma, unsigned long address, bool *out, bool *err_alloc, gfp_t gfp);
 extern int rm_set_unused(struct vm_area_struct *vma, unsigned long address);
 extern void rm_destroy(struct rm_node *node, unsigned char level); 
 

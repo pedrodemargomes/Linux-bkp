@@ -2714,7 +2714,7 @@ int promote_huge_pmd_address(struct vm_area_struct *vma, unsigned long haddr, st
 	pmd = mm_find_pmd(mm, haddr);
 	if (!pmd || pmd_trans_huge(*pmd)) {
 		// #ifdef DEBUG_RESERV_THP
-		// pr_alert("!pmd || pmd_trans_huge(*pmd)");
+		pr_alert("!pmd || pmd_trans_huge(*pmd)");
 		// #endif
 		goto out_unlock;
 	}
@@ -2728,7 +2728,7 @@ int promote_huge_pmd_address(struct vm_area_struct *vma, unsigned long haddr, st
 	// head = page = vm_normal_page(vma, haddr, *pte);
 	if (!page || !PageTransCompound(page)) {
 		// #ifdef DEBUG_RESERV_THP
-		// pr_alert("!page || !PageTransCompound(page) page = %ld PageTransCompound(page) = %d", page_to_pfn(page), PageTransCompound(page));
+		pr_alert("!page || !PageTransCompound(page) page = %ld PageTransCompound(page) = %d", page_to_pfn(page), PageTransCompound(page));
 		// #endif
 		goto out_unlock;
 	}
@@ -2736,9 +2736,9 @@ int promote_huge_pmd_address(struct vm_area_struct *vma, unsigned long haddr, st
 	VM_BUG_ON(page != compound_head(page));
 	lock_page(head);
 
-	#ifdef DEBUG_RESERV_THP
-	pr_alert("mem_cgroup_try_charge_delay page = %ld PageActive(page) = %d PageLRU(page) = %d page_count(page) = %d total_mapcount(page) = %d PageTransCompound(page) = %d", page_to_pfn(head), PageActive(head), PageLRU(head), page_count(head), total_mapcount(head), PageTransCompound(head));
-	#endif
+	// #ifdef DEBUG_RESERV_THP
+	// pr_alert("mem_cgroup_try_charge_delay page_to_pfn(head) = %lx head = %llx PageActive(head) = %d PageLRU(head) = %d page_count(head) = %d total_mapcount(head) = %d PageTransCompound(head) = %d", page_to_pfn(head), head, PageActive(head), PageLRU(head), page_count(head), total_mapcount(head), PageTransCompound(head));
+	// #endif
 	if (mem_cgroup_try_charge_delay(head, vma->vm_mm, GFP_KERNEL, &memcg,
 					true))
 		pr_alert("mem_cgroup_try_charge_delay ERROR");
@@ -2881,29 +2881,29 @@ int promote_huge_page_address(struct vm_area_struct *vma, struct page *head, uns
 	int ret;
 
 	if (haddr < vma->vm_start || (haddr + HPAGE_PMD_SIZE) > vma->vm_end) {
-		#ifdef DEBUG_RESERV_THP
+		// #ifdef DEBUG_RESERV_THP
 		pr_alert("haddr < vma->vm_start || (haddr + HPAGE_PMD_SIZE) > vma->vm_end");
-		#endif
+		// #endif
 		return -EINVAL;
 	}
 
-	pmd_t *pmd = mm_find_pmd(vma->vm_mm, haddr);
-	if (!pmd || pmd_trans_huge(*pmd)) {
-		pr_alert("!pmd || pmd_trans_huge(*pmd)");
-		return -EINVAL;
-	}
-	pte_t *pte = pte_offset_map(pmd, haddr);
-	struct page *page = head;
-	pte_t *_pte;
-	for (_pte = pte, page = head; _pte < pte + HPAGE_PMD_NR; _pte++, page++) {
-		pte_t pteval = *_pte;
-		if (!pte_none(pteval) && !is_zero_pfn(pte_pfn(pteval)) && ( (page_to_pfn(head) > page_to_pfn(pte_page(pteval))) || (page_to_pfn(pte_page(pteval)) >= page_to_pfn(head)+512) ) ) {
-			// #ifdef DEBUG_RESERV_THP
-			// pr_alert("pte checking ERROR head = %ld page = %ld page_to_pfn(pte_page(pteval)) = %ld", page_to_pfn(head), page_to_pfn(page), page_to_pfn(pte_page(pteval)));
-			// #endif
-			return -EINVAL;
-		}
-	}
+	// pmd_t *pmd = mm_find_pmd(vma->vm_mm, haddr);
+	// if (!pmd || pmd_trans_huge(*pmd)) {
+	// 	pr_alert("!pmd || pmd_trans_huge(*pmd)");
+	// 	return -EINVAL;
+	// }
+	// pte_t *pte = pte_offset_map(pmd, haddr);
+	// struct page *page = head;
+	// pte_t *_pte;
+	// for (_pte = pte, page = head; _pte < pte + HPAGE_PMD_NR; _pte++, page++) {
+	// 	pte_t pteval = *_pte;
+	// 	if (!pte_none(pteval) && !is_zero_pfn(pte_pfn(pteval)) && ( (page_to_pfn(head) > page_to_pfn(pte_page(pteval))) || (page_to_pfn(pte_page(pteval)) >= page_to_pfn(head)+512) ) ) {
+	// 		// #ifdef DEBUG_RESERV_THP
+	// 		pr_alert("pte checking ERROR haddr = %lx head = %lx page = %lx page_to_pfn(pte_page(pteval)) = %lx page_count(pte_page(pteval)) = %d page_mapcount(pte_page(pteval)) = %d", haddr, page_to_pfn(head), page_to_pfn(page), page_to_pfn(pte_page(pteval)), page_count(pte_page(pteval)), page_mapcount(pte_page(pteval)));
+	// 		// #endif
+	// 		// return -EINVAL;
+	// 	}
+	// }
 
 	// pr_info("INIT");
 	int i;
