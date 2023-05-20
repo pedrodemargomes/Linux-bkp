@@ -51,7 +51,7 @@ struct rm_node* rm_node_create() {
   return new;
 }
 
-extern void rm_release_reservation(struct vm_area_struct *vma, unsigned long address) {
+extern void rm_release_reservation(struct vm_area_struct *vma, unsigned long address, bool leave_valid) {
   unsigned char level;
   unsigned int i;
   unsigned int index;
@@ -166,7 +166,12 @@ extern void rm_release_reservation(struct vm_area_struct *vma, unsigned long add
       }
     }
     bitmap_zero(mask, 512);
-    cur_node->items[index].next_node = mark_invalid_rm(0);
+    if (leave_valid)
+      cur_node->items[index].next_node = 0;
+    else {
+      // pr_info("rm_release_reservation mark_invalid_rm Caller is %pS %pS %pS %pS %pS", __builtin_return_address(0), __builtin_return_address(1), __builtin_return_address(2), __builtin_return_address(3), __builtin_return_address(4));
+      cur_node->items[index].next_node = mark_invalid_rm(0);
+    }
     for (i = 0; i < RESERV_NR; i++)
       (page+i)->reservation = NULL;
   }
@@ -476,7 +481,7 @@ struct page *rm_alloc_from_reservation(struct vm_area_struct *vma, unsigned long
   // }
 
   if (!test_bit(region_offset, mask)) {
-    clear_user_highpage(page, address);
+    clear_highpage(page);
     get_page(page);
   } else {
     // pr_alert("out = true haddr = %lx page_to_pfn(page) = %lx page_to_pfn(head) = %lx", haddr, page_to_pfn(page), page_to_pfn(page - region_offset));
@@ -505,7 +510,7 @@ void rm_destroy(struct rm_node *node, unsigned char level) { //not thread-safe
   // traverse the reservaton map radix tree
   for (index = 0; index < RT_NODE_RANGE_SIZE; index++) {
     if (cur_node->items[index].next_node != NULL) {
-      if (level != 4) {
+      if (level != NUM_RT_LEVELS) {
         next_lock = &cur_node->items[index].lock;
         rm_destroy(cur_node->items[index].next_node, level + 1);
       } else {

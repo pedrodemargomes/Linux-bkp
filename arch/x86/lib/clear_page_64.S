@@ -49,3 +49,25 @@ ENTRY(clear_page_erms)
 	ret
 ENDPROC(clear_page_erms)
 EXPORT_SYMBOL_GPL(clear_page_erms)
+
+ENTRY(sse2_pagezero_chunk)
+	addq    %rsi,%rdi
+	neg		%rsi
+	xorl    %eax,%eax
+	jmp     1f
+	/*
+		* The loop takes 29 bytes.  Ensure that it doesn`t cross a 32-byte
+		* cache line.
+		*/
+	.p2align 5,0x90
+1:
+	movnti  %rax,(%rdi,%rsi)
+	movnti  %rax,8(%rdi,%rsi)
+	movnti  %rax,16(%rdi,%rsi)
+	movnti  %rax,24(%rdi,%rsi)
+	addq    $32,%rsi
+	jne     1b
+	sfence
+	ret
+ENDPROC(sse2_pagezero_chunk)
+EXPORT_SYMBOL_GPL(sse2_pagezero_chunk)

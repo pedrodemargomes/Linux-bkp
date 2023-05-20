@@ -1682,7 +1682,7 @@ static bool try_to_unmap_one(struct page *page, struct vm_area_struct *vma,
 discard:
 		if(page->reservation) {
 			// pr_info("page->reservation->next_node = %p page_to_pfn(get_page_from_rm((unsigned long)page->reservation->next_node) = %lx", page->reservation->next_node, page_to_pfn(get_page_from_rm((unsigned long)page->reservation->next_node)));
-    		rm_release_reservation(vma, address);
+    		rm_release_reservation(vma, address, false);
 		}
 		/*
 		 * No need to call mmu_notifier_invalidate_range() it has be

@@ -20,7 +20,7 @@
 #define SET_BIT(var,pos)   ((var) |= (1<<(pos)))
 #define UNSET_BIT(var,pos) ((var) &= (~(1<<(pos))))
 
-#define NUM_RT_LEVELS         4
+#define NUM_RT_LEVELS         3
 #define RT_LEVEL_INDEX_LENGTH 9 
 #define RT_NODE_RANGE_SIZE    ((1 << RT_LEVEL_INDEX_LENGTH)) // 512
 #define GET_RM_ROOT(vma)      (vma->vm_mm->memory_reservations)
@@ -93,7 +93,7 @@ extern void rm_destroy(struct rm_node *node, unsigned char level);
 extern int get_mask_weight_from_reservation(struct vm_area_struct *vma, unsigned long address);
 struct rm_entry *get_rm_entry_from_reservation(struct vm_area_struct *vma, unsigned long address, unsigned long **_mask);
 
-extern void rm_release_reservation(struct vm_area_struct *vma, unsigned long address);
+extern void rm_release_reservation(struct vm_area_struct *vma, unsigned long address, bool leave_valid);
 extern void rm_release_reservation_fast(struct rm_entry *rm_entry);
 
 void rm_print_freq(struct rm_node *node, unsigned char level);

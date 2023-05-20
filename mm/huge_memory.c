@@ -1783,7 +1783,7 @@ int zap_huge_pmd(struct mmu_gather *tlb, struct vm_area_struct *vma,
 	if (!ptl)
 		return 0;
 
-	rm_release_reservation(vma, addr);
+	rm_release_reservation(vma, addr, false);
 	/*
 	 * For architectures like ppc64 we look at deposited pgtable
 	 * when calling pmdp_huge_get_and_clear. So do the
@@ -2777,7 +2777,6 @@ int promote_huge_pmd_address(struct vm_area_struct *vma, unsigned long haddr, st
 	_pmd = pmdp_collapse_flush(vma, haddr, pmd);
 	spin_unlock(pmd_ptl);
 	
-
 	/* remove ptes */
 	for (_pte = pte, page = head; _pte < pte + HPAGE_PMD_NR;
 				_pte++, page++, address += PAGE_SIZE) {
@@ -2786,7 +2785,7 @@ int promote_huge_pmd_address(struct vm_area_struct *vma, unsigned long haddr, st
 		// É preciso vertificar se todos os ptes estão livres, caso estajam sendo usados para mapear paginas fora dessa reserva
 		// algo precisa ser feito https://lkml.org/lkml/2018/1/25/571
 		if (pte_none(pteval) || is_zero_pfn(pte_pfn(pteval))) {
-			clear_user_highpage(page, address);
+			clear_highpage(page);
 			add_mm_counter(vma->vm_mm, MM_ANONPAGES, 1);
 			if (is_zero_pfn(pte_pfn(pteval))) {
 				/*
@@ -2836,8 +2835,6 @@ int promote_huge_pmd_address(struct vm_area_struct *vma, unsigned long haddr, st
 		pr_info("page = %ld page->_mapcount = %d", page_to_pfn(page), atomic_read(&(page)->_mapcount));
 		#endif
 	}
-	// pr_info("page = %ld total_mapcount(page) = %d", page_to_pfn(page), total_mapcount(page));
-	// page_ref_sub(head, HPAGE_PMD_NR - 1);
 	set_page_count(head, 2); // 2
 
 	pte_unmap(pte);

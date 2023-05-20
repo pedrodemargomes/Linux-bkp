@@ -1487,7 +1487,7 @@ static inline unsigned long zap_pmd_range(struct mmu_gather *tlb,
 				print = true;
 				// pr_alert("before __split_huge_pmd addr = %lx PageTransCompound(page) = %d page_to_pfn(page) = %lx page_count(page) = %d total_mapcount(page) = %d", addr, PageTransCompound(page), page_to_pfn(page), page_count(page), total_mapcount(page));
 				// pr_alert("before __split_huge_pmd addr = %lx PageTransCompound(page) = %d page_to_pfn(page) = %lx page_count(page) = %d total_mapcount(page) = %d", addr, PageTransCompound(page+1), page_to_pfn(page+1), page_count(page+1), total_mapcount(page+1));
-				rm_release_reservation(vma, addr);
+				rm_release_reservation(vma, addr, false);
 				__split_huge_pmd(vma, pmd, addr, false, NULL);
 				// pr_alert("__split_huge_pmd addr = %lx PageTransCompound(page) = %d page_to_pfn(page) = %lx page_count(page) = %d total_mapcount(page) = %d", addr, PageTransCompound(page), page_to_pfn(page), page_count(page), total_mapcount(page));
 				// pr_alert("__split_huge_pmd addr = %lx PageTransCompound(page) = %d page_to_pfn(page) = %lx page_count(page) = %d total_mapcount(page) = %d", addr, PageTransCompound(page+1), page_to_pfn(page+1), page_count(page+1), total_mapcount(page+1));
@@ -2670,7 +2670,7 @@ static vm_fault_t wp_page_copy(struct vm_fault *vmf)
 		if (!new_page)
 			goto oom;
 	} else {
-    	rm_release_reservation(vma, vmf->address);
+    	rm_release_reservation(vma, vmf->address, false);
 		new_page = alloc_page_vma(GFP_HIGHUSER_MOVABLE, vma,
 				vmf->address);
 		if (!new_page)
@@ -3474,10 +3474,10 @@ static vm_fault_t do_anonymous_page(struct vm_fault *vmf)
 		goto oom;
 
 	// #ifdef DEBUG_RESERV_THP
-	if (PageTransCompound(page)) {
-		pr_alert("memory.c after __SetPageUptodate PageTransCompound(page) == true page_to_pfn(page) = %lx", page_to_pfn(page));
-		return 0;
-	}
+	// if (PageTransCompound(page)) {
+	// 	pr_alert("memory.c after __SetPageUptodate PageTransCompound(page) == true page_to_pfn(page) = %lx", page_to_pfn(page));
+	// 	return 0;
+	// }
 	// #endif
 
 	if (mem_cgroup_try_charge_delay(page, vma->vm_mm, GFP_KERNEL, &memcg,
@@ -4572,70 +4572,6 @@ static vm_fault_t __handle_mm_fault(struct vm_area_struct *vma,
 			}
 		}
 	}
-
-// 	unsigned long *mask = NULL;
-// 	hstart = (vma->vm_start + ~HPAGE_PMD_MASK) & HPAGE_PMD_MASK;
-// 	hend = vma->vm_end & HPAGE_PMD_MASK;
-// 	rm_entry = get_rm_entry_from_reservation(vma, vmf.address, &mask);
-// 	if (!(address < hstart || address + HPAGE_PMD_SIZE > hend) && rm_entry && mask != NULL && bitmap_weight(mask, 512) > 64) {
-// 		up_read(&mm->mmap_sem);
-// 		down_write(&mm->mmap_sem);
-// 		rm_entry = get_rm_entry_from_reservation(vma, vmf.address, &mask);
-// 		spin_lock(&rm_entry->lock);
-
-// 		if ( !(!(address < hstart || address + HPAGE_PMD_SIZE > hend) && rm_entry && rm_entry->mask != NULL && bitmap_weight(rm_entry->mask, 512) > 64) ) {
-// 			pr_alert("+++");
-// 			goto out;
-// 		}
-
-// 		if (is_invalid_rm((unsigned long) rm_entry->next_node))
-// 			pr_alert("is_invalid_rm");
-
-// 		if (!rm_entry->next_node) {
-// 			// pr_alert("!rm_entry->next_node");
-// 			goto out;
-// 		}
-
-// 		int result = hugepage_vma_revalidate(mm, vmf.address, &vma);
-// 		if (result) {
-// 			// pr_info("goto out hugepage_vma_revalidate");
-// 			goto out;
-// 		}
-
-// 		// mask = NULL;
-// 		// rm_entry = get_rm_entry_from_reservation(vma, vmf.address, &mask);
-// 		// if (!rm_entry || (address < hstart || address + HPAGE_PMD_SIZE > hend) || mask == NULL || bitmap_weight(mask, 512) <= 64) {
-// 		// 	pr_alert("goto out rm_entry");
-// 		// 	goto out;
-// 		// }
-
-// 		lru_add_drain_all(); // drena os LRUs
-		
-// 		unsigned long haddr = vmf.address & RESERV_MASK;
-// 		struct page *head = get_page_from_rm((unsigned long) rm_entry->next_node);
-// 		// pr_info("page_to_pfn(head) = %lx rm_entry->next_node = %p haddr = %lx mask = %d", page_to_pfn(head),  rm_entry->next_node, haddr, bitmap_weight(mask, 512));
-// 		if (PageTransCompound(head)) {
-// 			spin_unlock(&rm_entry->lock);
-// 			up_write(&mm->mmap_sem);
-// 			// pr_info("return VM_FAULT_RETRY");
-// 			return VM_FAULT_RETRY;
-// 		}
-		
-// 		pr_info("promote_huge_page_address try to promote page_to_pfn(head) = %lx haddr = %lx mask weight = %d", page_to_pfn(head), haddr, bitmap_weight(mask, 512));
-// 		int retPrmtHugePage = promote_huge_page_address(vma, head, haddr);
-// 		if (!retPrmtHugePage) {
-// 			pr_info("promote_huge_page_address SUCCESS page_to_pfn(head) = %lx haddr = %lx mask weight = %d", page_to_pfn(head), haddr, bitmap_weight(mask, 512));
-// 			osa_hpage_exit_list(rm_entry);
-// 			spin_unlock(&rm_entry->lock);
-// 			up_write(&mm->mmap_sem);
-// 			down_read(&mm->mmap_sem);
-// 			return 0;
-// 		} 
-// out:
-// 		spin_unlock(&rm_entry->lock);
-// 		up_write(&mm->mmap_sem);
-// 		down_read(&mm->mmap_sem);
-// 	}
 
 	ret = handle_pte_fault(&vmf);
 

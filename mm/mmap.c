@@ -2787,7 +2787,7 @@ int do_munmap(struct mm_struct *mm, unsigned long start, size_t len,
 	it_addr = start;
 	for (; it_addr < end; it_addr += PAGE_SIZE) {
 		// pr_info("rm_release_reservation do_munmap");
-		rm_release_reservation(vma, it_addr);
+		rm_release_reservation(vma, it_addr, true);
 	}
 	// pr_alert("END do_munmap");
 
