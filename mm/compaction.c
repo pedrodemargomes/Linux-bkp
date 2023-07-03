@@ -53,7 +53,7 @@ static inline void count_compact_events(enum vm_event_item item, long delta)
 /*
  * Fragmentation score check interval for proactive compaction purposes.
  */
-static const int HPAGE_FRAG_CHECK_INTERVAL_MSEC = 500;
+static const int HPAGE_FRAG_CHECK_INTERVAL_MSEC = 5000;
 
 /*
  * Page order with-respect-to which proactive compaction
@@ -152,7 +152,7 @@ void __ClearPageMovable(struct page *page)
 EXPORT_SYMBOL(__ClearPageMovable);
 
 /* Do not skip compaction more than 64 times */
-#define COMPACT_MAX_DEFER_SHIFT 6
+#define COMPACT_MAX_DEFER_SHIFT 3
 
 /*
  * Compaction is deferred when compaction fails to result in a page
@@ -1950,7 +1950,7 @@ enum compact_result try_to_compact_pages(gfp_t gfp_mask, unsigned int order,
  * due to various back-off conditions, such as, contention on per-node or
  * per-zone locks.
  */
-static void proactive_compact_node(pg_data_t *pgdat)
+void proactive_compact_node(pg_data_t *pgdat)
 {
 	int zoneid;
 	struct zone *zone;
@@ -1970,9 +1970,7 @@ static void proactive_compact_node(pg_data_t *pgdat)
 
 		cc.zone = zone;
 
-		// pr_info("Compacting zone = %d", zoneid);
 		compact_zone(zone, &cc);
-		// pr_alert("- - - - -");
 
 		VM_BUG_ON(!list_empty(&cc.freepages));
 		VM_BUG_ON(!list_empty(&cc.migratepages));
@@ -1980,14 +1978,14 @@ static void proactive_compact_node(pg_data_t *pgdat)
 }
 
 /* Compact all zones within a node */
-static void compact_node(int nid)
+extern void compact_node(int nid)
 {
 	pg_data_t *pgdat = NODE_DATA(nid);
 	int zoneid;
 	struct zone *zone;
 	struct compact_control cc = {
 		.order = -1,
-		.mode = MIGRATE_SYNC,
+		.mode = MIGRATE_SYNC_LIGHT,
 		.ignore_skip_hint = true,
 		.whole_zone = true,
 		.gfp_mask = GFP_KERNEL,
@@ -2232,34 +2230,10 @@ static int kcompactd(void *p)
 
 	while (!kthread_should_stop()) {
 		trace_mm_compaction_kcompactd_sleep(pgdat->node_id);
-		if (wait_event_freezable_timeout(pgdat->kcompactd_wait,
-			kcompactd_work_requested(pgdat),
-			msecs_to_jiffies(HPAGE_FRAG_CHECK_INTERVAL_MSEC))) {
 
-			kcompactd_do_work(pgdat);
-			continue;
-		}
-
-		/* kcompactd wait timeout */
-		if (should_proactive_compact_node(pgdat)) {
-			unsigned int prev_score, score;
-
-			if (proactive_defer) {
-				proactive_defer--;
-				continue;
-			}
-			prev_score = fragmentation_score_node(pgdat);
-			proactive_compact_node(pgdat);
-			score = fragmentation_score_node(pgdat);
-			/*
-			 * Defer proactive compaction if the fragmentation
-			 * score did not go down i.e. no progress made.
-			 */
-			proactive_defer = score < prev_score ?
-					0 : 1 << COMPACT_MAX_DEFER_SHIFT;
-		}
-
-		
+		wait_event_freezable(pgdat->kcompactd_wait, HPAGE_FRAG_CHECK_INTERVAL_MSEC);
+		pr_info("proactive_compact_node");
+		proactive_compact_node(pgdat);
 	}
 
 	return 0;
@@ -2336,8 +2310,8 @@ static int __init kcompactd_init(void)
 		return ret;
 	}
 
-	for_each_node_state(nid, N_MEMORY)
-		kcompactd_run(nid);
+	// for_each_node_state(nid, N_MEMORY)
+	// 	kcompactd_run(nid);
 	return 0;
 }
 subsys_initcall(kcompactd_init)

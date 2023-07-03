@@ -791,8 +791,10 @@ static void print_bad_pte(struct vm_area_struct *vma, unsigned long addr,
 	pr_alert("BUG: Bad page map in process %s  pte:%08llx pmd:%08llx\n",
 		 current->comm,
 		 (long long)pte_val(pte), (long long)pmd_val(*pmd));
-	if (page)
+	if (page) {
 		dump_page(page, "bad pte");
+		pr_alert("bad page_to_pfn(page) = %lx PageTransCompound(page) = %d", page_to_pfn(page), PageTransCompound(page));
+	}
 	pr_alert("addr:%p vm_flags:%08lx anon_vma:%p mapping:%p index:%lx\n",
 		 (void *)addr, vma->vm_flags, vma->anon_vma, mapping, index);
 	pr_alert("file:%pD fault:%pf mmap:%pf readpage:%pf\n",
@@ -3436,31 +3438,31 @@ static vm_fault_t do_anonymous_page(struct vm_fault *vmf)
 		if (out)
 			return 0;
 
-		if (err_alloc) {
-			// zones = NODE_DATA(numa_node_id())->node_zones;
-			// pr_info("zone_page_state(&zones[ZONE_NORMAL], NR_FREE_PAGES) = %ld", zone_page_state(&zones[ZONE_NORMAL], NR_FREE_PAGES));
-			// pr_info("zone_page_state(&zones[ZONE_DMA], NR_FREE_PAGES) = %ld", zone_page_state(&zones[ZONE_DMA], NR_FREE_PAGES));
-			// pr_info("zone_page_state(&zones[ZONE_DMA32], NR_FREE_PAGES) = %ld", zone_page_state(&zones[ZONE_DMA32], NR_FREE_PAGES));
+		// if (err_alloc) {
+		// 	zones = NODE_DATA(numa_node_id())->node_zones;
+		// 	pr_info("zone_page_state(&zones[ZONE_NORMAL], NR_FREE_PAGES) = %ld", zone_page_state(&zones[ZONE_NORMAL], NR_FREE_PAGES));
+		// 	pr_info("zone_page_state(&zones[ZONE_DMA], NR_FREE_PAGES) = %ld", zone_page_state(&zones[ZONE_DMA], NR_FREE_PAGES));
+		// 	pr_info("zone_page_state(&zones[ZONE_DMA32], NR_FREE_PAGES) = %ld", zone_page_state(&zones[ZONE_DMA32], NR_FREE_PAGES));
 			
-			int num_freed = 0;
-			spin_lock(&osa_hpage_list_lock);
-			list_for_each_entry_safe(rm_entry, aux, &osa_hpage_scan_list, osa_hpage_scan_link) {
-				next_lock = &rm_entry->lock;
-				if (spin_trylock(next_lock)) {
-					// pr_info("rm_release_reservation_fast rm_entry->head = %ld", page_to_pfn(get_page_from_rm((unsigned long)(rm_entry->next_node))) );
-					rm_release_reservation_fast(rm_entry);
-					spin_unlock(next_lock);
-					num_freed++;
-				}
-				// if (zone_page_state(&zones[ZONE_NORMAL], NR_FREE_PAGES) > high_wmark_pages((&zones[ZONE_NORMAL]))) {
-				// 	// pr_alert("zone_page_state(&zones[ZONE_NORMAL], NR_FREE_PAGES) = %ld", zone_page_state(&zones[ZONE_NORMAL], NR_FREE_PAGES));
-				// 	break;
-				// }
-				if (num_freed > 10)
-					break;
-			}
-			spin_unlock(&osa_hpage_list_lock);
-		}
+		// 	int num_freed = 0;
+		// 	spin_lock(&osa_hpage_list_lock);
+		// 	list_for_each_entry_safe(rm_entry, aux, &osa_hpage_scan_list, osa_hpage_scan_link) {
+		// 		next_lock = &rm_entry->lock;
+		// 		if (spin_trylock(next_lock)) {
+		// 			// pr_info("rm_release_reservation_fast rm_entry->head = %ld", page_to_pfn(get_page_from_rm((unsigned long)(rm_entry->next_node))) );
+		// 			rm_release_reservation_fast(rm_entry);
+		// 			spin_unlock(next_lock);
+		// 			num_freed++;
+		// 		}
+		// 		// if (zone_page_state(&zones[ZONE_NORMAL], NR_FREE_PAGES) > high_wmark_pages((&zones[ZONE_NORMAL]))) {
+		// 		// 	// pr_alert("zone_page_state(&zones[ZONE_NORMAL], NR_FREE_PAGES) = %ld", zone_page_state(&zones[ZONE_NORMAL], NR_FREE_PAGES));
+		// 		// 	break;
+		// 		// }
+		// 		if (num_freed > 10)
+		// 			break;
+		// 	}
+		// 	spin_unlock(&osa_hpage_list_lock);
+		// }
 	} else {
 		page = NULL;
 	}

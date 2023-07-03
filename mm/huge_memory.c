@@ -2622,6 +2622,7 @@ int total_mapcount(struct page *page)
 		return atomic_read(&page->_mapcount) + 1;
 
 	compound = compound_mapcount(page);
+	// pr_info("compound_mapcount(page) = %d", compound);
 	if (PageHuge(page))
 		return compound;
 	ret = compound;
@@ -2630,8 +2631,13 @@ int total_mapcount(struct page *page)
 	/* File pages has compound_mapcount included in _mapcount */
 	if (!PageAnon(page))
 		return ret - compound * HPAGE_PMD_NR;
-	if (PageDoubleMap(page))
+
+	// pr_info("ret = %d", ret);
+	
+	if (PageDoubleMap(page)) {
 		ret -= HPAGE_PMD_NR;
+		// pr_info("PageDoubleMap ret = %d", ret);
+	}
 	return ret;
 }
 
@@ -2777,15 +2783,16 @@ int promote_huge_pmd_address(struct vm_area_struct *vma, unsigned long haddr, st
 	_pmd = pmdp_collapse_flush(vma, haddr, pmd);
 	spin_unlock(pmd_ptl);
 	
+	int idx_begin = 0, idx_end;
 	/* remove ptes */
-	for (_pte = pte, page = head; _pte < pte + HPAGE_PMD_NR;
-				_pte++, page++, address += PAGE_SIZE) {
+	for (_pte = pte, page = head, idx_end = 0; _pte < pte + HPAGE_PMD_NR;
+				_pte++, page++, address += PAGE_SIZE, idx_end++) {
 		pte_t pteval = *_pte;
 		// pteeval nao eh none quando deveria ser e decrementa o mapcount para -2 quando deveria manter em -1
 		// É preciso vertificar se todos os ptes estão livres, caso estajam sendo usados para mapear paginas fora dessa reserva
 		// algo precisa ser feito https://lkml.org/lkml/2018/1/25/571
 		if (pte_none(pteval) || is_zero_pfn(pte_pfn(pteval))) {
-			clear_highpage(page);
+			// clear_highpage(page);
 			add_mm_counter(vma->vm_mm, MM_ANONPAGES, 1);
 			if (is_zero_pfn(pte_pfn(pteval))) {
 				/*
@@ -2800,14 +2807,17 @@ int promote_huge_pmd_address(struct vm_area_struct *vma, unsigned long haddr, st
 				spin_unlock(pte_ptl);
 			}
 		} else {
+			if (idx_end != idx_begin) {
+				// pr_info("npages = %d", idx_end-idx_begin);
+				clear_highpages(head+idx_begin, idx_end-idx_begin);
+			}
+			idx_begin = idx_end+1;
 			// #ifdef DEBUG_RESERV_THP
 			// pr_alert("else");
 
-			// if (page_to_pfn(pte_page(pteval)) != page_to_pfn(page)) {
-			// if (atomic_read(&(page)->_mapcount) == -1) {
-				// struct page *page_pte = pte_page(pteval);
-				// pr_alert("page_pte = %ld", page_to_pfn(page_pte));
-			// }
+			if (page_to_pfn(pte_page(pteval)) != page_to_pfn(page)) {
+				pr_info("ERROR: page_to_pfn(pte_page(pteval)) %lx != page_to_pfn(page) %lx", page_to_pfn(pte_page(pteval)), page_to_pfn(page));
+			}
 			// #endif
 
 			// unlock_page(page);
@@ -2831,9 +2841,13 @@ int promote_huge_pmd_address(struct vm_area_struct *vma, unsigned long haddr, st
 			}
 			spin_unlock(pte_ptl);
 		}
-		#ifdef DEBUG_RESERV_THP
-		pr_info("page = %ld page->_mapcount = %d", page_to_pfn(page), atomic_read(&(page)->_mapcount));
-		#endif
+		// #ifdef DEBUG_RESERV_THP
+		// pr_info("page = %lx page->_mapcount+1 = %d", page_to_pfn(page), atomic_read(&(page)->_mapcount)+1);
+		// #endif
+	}
+	if (idx_begin != idx_end) {
+		// pr_info("npages = %d", idx_end-idx_begin);
+		clear_highpages(head+idx_begin, idx_end-idx_begin);
 	}
 	set_page_count(head, 2); // 2
 
@@ -2979,7 +2993,7 @@ int split_huge_page_to_list(struct page *page, struct list_head *list)
 	VM_BUG_ON_PAGE(!PageCompound(page), page);
 
 	if (PageWriteback(page)) {
-		// pr_alert("PageWriteback");
+		pr_alert("PageWriteback");
 		return -EBUSY;
 	}
 
@@ -2995,7 +3009,7 @@ int split_huge_page_to_list(struct page *page, struct list_head *list)
 		anon_vma = page_get_anon_vma(head);
 		if (!anon_vma) {
 			ret = -EBUSY;
-			// pr_alert("!anon_vma");
+			// pr_alert("!anon_vma Caller %pS %pS", __builtin_return_address(0), __builtin_return_address(1));
 			goto out;
 		}
 		end = -1;
@@ -3007,7 +3021,7 @@ int split_huge_page_to_list(struct page *page, struct list_head *list)
 		/* Truncated ? */
 		if (!mapping) {
 			ret = -EBUSY;
-			// pr_alert("!mapping");
+			pr_alert("!mapping");
 			goto out;
 		}
 
@@ -3030,7 +3044,7 @@ int split_huge_page_to_list(struct page *page, struct list_head *list)
 	 */
 	if (!can_split_huge_page(head, &extra_pins)) {
 		ret = -EBUSY;
-		// pr_alert("!can_split_huge_page");
+		pr_alert("!can_split_huge_page");
 		goto out_unlock;
 	}
 
@@ -3078,6 +3092,7 @@ int split_huge_page_to_list(struct page *page, struct list_head *list)
 		} else
 			ret = 0;
 	} else {
+		// pr_alert("page_ref_freeze(head, 1 + extra_pins)");
 		spin_unlock(&pgdata->split_queue_lock);
 fail:
 		if (mapping)
@@ -3115,6 +3130,7 @@ void free_transhuge_page(struct page *page)
 
 void deferred_split_huge_page(struct page *page)
 {
+	// pr_info("deferred_split_huge_page page_to_pfn(page) = %lx Caller %pS", page_to_pfn(page), __builtin_return_address(0));
 	struct pglist_data *pgdata = NODE_DATA(page_to_nid(page));
 	unsigned long flags;
 
@@ -3137,7 +3153,7 @@ static unsigned long deferred_split_count(struct shrinker *shrink,
 	return READ_ONCE(pgdata->split_queue_len);
 }
 
-static unsigned long deferred_split_scan(struct shrinker *shrink,
+unsigned long deferred_split_scan(struct shrinker *shrink,
 		struct shrink_control *sc)
 {
 	// pr_alert("deferred_split_scan");
@@ -3196,6 +3212,7 @@ next:
 		// pr_alert("SHRINK_STOP");
 		return SHRINK_STOP;
 	}
+	// pr_alert("split = %d", split);
 	return split;
 }
 

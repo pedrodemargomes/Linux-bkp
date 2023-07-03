@@ -44,7 +44,7 @@ DECLARE_WAIT_QUEUE_HEAD(osa_hpage_scand_wait);
 static struct workqueue_struct *osa_hpage_scand_wq __read_mostly;
 static struct work_struct osa_hpage_scan_work;
 
-static unsigned int scan_sleep_millisecs = 4000;
+static unsigned int scan_sleep_millisecs = 1000;
 static unsigned long sleep_expire;
 
 static ssize_t alloc_scan_sleep_show(struct kobject *kobj,
@@ -134,7 +134,9 @@ void osa_hpage_do_scan(void)
 	int err, i;
 	unsigned int timestamp;
 	spinlock_t  *next_lock;
-
+	struct shrink_control sc;
+	sc.nr_to_scan = 99999999999;
+	sc.nid = 0;
 	// pr_alert("osa_hpage_do_scan");
 
 	int list_size = 0;
@@ -151,28 +153,30 @@ void osa_hpage_do_scan(void)
 	*/
 	
 	// Scanning partial populated reservations
-	spin_lock(&osa_hpage_list_lock);
-	list_for_each_entry_safe(rm_entry, aux, &osa_hpage_scan_list, osa_hpage_scan_link) {
-		list_size++;
-		timestamp = rm_entry->timestamp;
-		if (jiffies_to_msecs(jiffies) - timestamp > 5000) {
-			pr_alert("timestamp = %u", jiffies_to_msecs(jiffies) - timestamp);
+	// spin_lock(&osa_hpage_list_lock);
+	// list_for_each_entry_safe(rm_entry, aux, &osa_hpage_scan_list, osa_hpage_scan_link) {
+	// 	list_size++;
+	// 	timestamp = rm_entry->timestamp;
+	// 	if (jiffies_to_msecs(jiffies) - timestamp > 5000) {
+	// 		// pr_alert("timestamp = %u", jiffies_to_msecs(jiffies) - timestamp);
+	// 		next_lock = &rm_entry->lock;
+	// 		if (spin_trylock(next_lock)) {
+	// 			// pr_alert("rm_release_reservation_fast rm_entry->head = %ld", page_to_pfn(get_page_from_rm((unsigned long)(rm_entry->next_node))) );
+	// 			rm_release_reservation_fast(rm_entry);
+	// 			spin_unlock(next_lock);
+	// 			num_freed++;
+	// 		}
+	// 		if (num_freed > 100)
+	// 			break;
 
-			next_lock = &rm_entry->lock;
-			if (spin_trylock(next_lock)) {
-				// pr_alert("rm_release_reservation_fast rm_entry->head = %ld", page_to_pfn(get_page_from_rm((unsigned long)(rm_entry->next_node))) );
-				rm_release_reservation_fast(rm_entry);
-				spin_unlock(next_lock);
-				num_freed++;
-			}
-			if (num_freed > 100)
-				break;
+	// 	}
+	// }
+	// spin_unlock(&osa_hpage_list_lock);
+	// pr_info("num_freed = %d", num_freed);
+	int split = deferred_split_scan(NULL, &sc);
+	// pr_info("split = %d", split);
 
-		}
-	}
-	spin_unlock(&osa_hpage_list_lock);
-
-	pr_info("num_freed = %d", num_freed);
+	compact_node(0);
 
 	return;
 }
@@ -247,14 +251,14 @@ static int __init osa_hugepage_init(void)
 
 	INIT_LIST_HEAD(&osa_hpage_scan_list);
 
-	// err = start_stop_osa_hpage_scand();
-	// if (err)
-	// 	goto err_sysfs;
+	err = start_stop_osa_hpage_scand();
+	if (err)
+		goto err_sysfs;
 
 	// /* init sysfs */
-	// err = reserve_tracking_init_sysfs();
-	// if (err)
-	// 	goto err_sysfs;
+	err = reserve_tracking_init_sysfs();
+	if (err)
+		goto err_sysfs;
 
 	return 0;
 

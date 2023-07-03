@@ -187,8 +187,14 @@ alloc_zeroed_user_highpage_movable(struct vm_area_struct *vma,
 static inline void clear_highpage(struct page *page)
 {
 	void *kaddr = kmap_atomic(page);
-	clear_page(kaddr);
+	clear_pages_clzero(kaddr, 1);
 	kunmap_atomic(kaddr);
+}
+
+static inline void clear_highpages(struct page *page, unsigned long npages)
+{
+	void *kaddr = page_address(page);
+	clear_pages_clzero(kaddr, npages);
 }
 
 static inline void zero_user_segments(struct page *page,

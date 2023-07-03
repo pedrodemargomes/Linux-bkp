@@ -50,6 +50,31 @@ ENTRY(clear_page_erms)
 ENDPROC(clear_page_erms)
 EXPORT_SYMBOL_GPL(clear_page_erms)
 
+ENTRY(clear_pages_erms)
+	movq %rsi,%rcx
+	shlq $12, %rcx
+ 	xorl %eax,%eax
+ 	rep stosb
+	ret
+ENDPROC(clear_pages_erms)
+EXPORT_SYMBOL_GPL(clear_pages_erms)
+
+ENTRY(clear_pages_clzero)
+	movq	%rdi,%rax
+	movq	%rsi,%rcx
+	shlq    $12, %rcx
+
+	.p2align 4
+.Liter:
+	clzero
+	addq    $0x40, %rax
+	subl    $0x40, %ecx
+	ja      .Liter
+	ret
+ENDPROC(clear_pages_clzero)
+EXPORT_SYMBOL_GPL(clear_pages_clzero)
+
+
 ENTRY(sse2_pagezero_chunk)
 	addq    %rsi,%rdi
 	neg		%rsi

@@ -2758,6 +2758,7 @@ int do_munmap(struct mm_struct *mm, unsigned long start, size_t len,
 	unsigned long end;
 	struct vm_area_struct *vma, *prev, *last;
 
+	unsigned long *mask;
   	unsigned long it_addr;
 	int i;
 	struct page *page = NULL;
@@ -2783,11 +2784,52 @@ int do_munmap(struct mm_struct *mm, unsigned long start, size_t len,
 	if (vma->vm_start >= end)
 		return 0;
 
+
+	// if (start & ~HPAGE_PMD_MASK &&
+	// 	(start & HPAGE_PMD_MASK) >= vma->vm_start &&
+	// 	(start & HPAGE_PMD_MASK) + HPAGE_PMD_SIZE <= vma->vm_end) {
+	// 	struct rm_entry *rm_entry = get_rm_entry_from_reservation(vma, start, &mask);
+	// 	if (rm_entry != NULL) {
+	// 		unsigned long leaf_value = (unsigned long)(rm_entry->next_node);
+	// 		if (leaf_value != 0) { 
+	// 			page = get_page_from_rm(leaf_value);
+	// 			if (PageTransCompound(page)) {
+	// 				lock_page(page);
+	// 				split_huge_page(page);
+	// 				unlock_page(page);
+	// 			}
+	// 		}
+	// 	}
+	// }
+
+	// if (end & ~HPAGE_PMD_MASK &&
+	//     (end & HPAGE_PMD_MASK) >= vma->vm_start &&
+	//     (end & HPAGE_PMD_MASK) + HPAGE_PMD_SIZE <= vma->vm_end) {
+	// 	struct rm_entry *rm_entry = get_rm_entry_from_reservation(vma, end, &mask);
+	// 	if (rm_entry != NULL) {
+	// 		unsigned long leaf_value = (unsigned long)(rm_entry->next_node);
+	// 		if (leaf_value != 0) { 
+	// 			page = get_page_from_rm(leaf_value);
+	// 			if (PageTransCompound(page)) {
+	// 				lock_page(page);
+	// 				split_huge_page(page);
+	// 				unlock_page(page);
+	// 			}
+	// 		}
+	// 	}
+	// }
+		
+
+	
+
 	// pr_alert("INIT do_munmap");
 	it_addr = start;
 	for (; it_addr < end; it_addr += PAGE_SIZE) {
 		// pr_info("rm_release_reservation do_munmap");
-		rm_release_reservation(vma, it_addr, true);
+		if ((it_addr & HPAGE_PMD_MASK) < start || (it_addr & HPAGE_PMD_MASK) + HPAGE_PMD_SIZE > end)
+			rm_release_reservation(vma, it_addr, false);
+		else
+			rm_release_reservation(vma, it_addr, true);
 	}
 	// pr_alert("END do_munmap");
 

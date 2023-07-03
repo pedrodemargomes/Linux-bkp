@@ -713,7 +713,7 @@ madvise_behavior_valid(int behavior)
 	case MADV_REMOVE:
 	case MADV_WILLNEED:
 	// case MADV_DONTNEED:
-	case MADV_FREE:
+	// case MADV_FREE:
 #ifdef CONFIG_KSM
 	case MADV_MERGEABLE:
 	case MADV_UNMERGEABLE:
@@ -731,7 +731,6 @@ madvise_behavior_valid(int behavior)
 	case MADV_HWPOISON:
 #endif
 		return true;
-
 	default:
 		return false;
 	}

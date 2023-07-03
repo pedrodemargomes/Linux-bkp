@@ -54,6 +54,7 @@ struct rm_node* rm_node_create() {
 extern void rm_release_reservation(struct vm_area_struct *vma, unsigned long address, bool leave_valid) {
   unsigned char level;
   unsigned int i;
+  int j;
   unsigned int index;
   int unused;
 
@@ -101,9 +102,10 @@ extern void rm_release_reservation(struct vm_area_struct *vma, unsigned long add
   mask = (unsigned long *)(cur_node->items[index].mask);
   if (mark_valid_rm(leaf_value) != 0) {
     page = get_page_from_rm(leaf_value);
-    osa_hpage_exit_list(&cur_node->items[index]);
+
+    // osa_hpage_exit_list(&cur_node->items[index]);
     // #ifdef DEBUG_RESERV_THP
-    // pr_info("rm_release PageTransCompound(page) = %d haddr = %lx address = %lx page_to_pfn(page) = %lx page_count(page) = %d total_mapcount(page) = %d page_mapcount(page) = %d is_invalid = %d", PageTransCompound(page), haddr, address, page_to_pfn(page), page_count(page), total_mapcount(page), page_mapcount(page), is_invalid_rm(leaf_value));
+    // pr_info("rm_release PageTransCompound(page) = %d haddr = %lx address = %lx page_to_pfn(page) = %lx page_count(page) = %d total_mapcount(page) = %d page_mapcount(page) = %d is_invalid = %d Caller %pS", PageTransCompound(page), haddr, address, page_to_pfn(page), page_count(page), total_mapcount(page), page_mapcount(page), is_invalid_rm(leaf_value), __builtin_return_address(0));
     // #endif
     if (PageTransCompound(page)) {
       // #ifdef DEBUG_RESERV_THP
@@ -137,8 +139,20 @@ extern void rm_release_reservation(struct vm_area_struct *vma, unsigned long add
       // if(split_huge_page(page))
       //   pr_alert("split_huge_page failed");
       // unlock_page(page);
-      put_page(page);
 
+      // if(leave_valid) {
+      //   lock_page(page);
+      //   if (split_huge_page(page))
+      //     pr_alert("split_huge_page failed page_to_pfn(page) = %lx", page_to_pfn(page));
+      //   unlock_page(page);
+      //   // for (i = 0; i < RESERV_NR; i++)
+      //   //   put_page(page+i);
+      //   put_page(page);
+      //   for (j = 0; j < 512; j++)
+      //     pr_info("page = %lx page_count(page) = %d page_mapcount(page) = %d", page_to_pfn(page+j), page_count(page+j), page_mapcount(page+j));
+      // } else {
+      put_page(page);
+      // }
       // #ifdef DEBUG_RESERV_THP
       // for (i = 0; i < RESERV_NR; i++) {
       //   // ClearPageActive(page+i);
@@ -430,6 +444,7 @@ struct page *rm_alloc_from_reservation(struct vm_area_struct *vma, unsigned long
   mask = (unsigned long *)(cur_node->items[index].mask);
   head = page = get_page_from_rm(leaf_value);
   if (leaf_value == 0) { //create a new reservation if not present
+    // FIX: CRIAR RESERVAS MESMO QUE ULTRAPASSE O VMA POIS ELE PODE CRESCER
     if (haddr < vma->vm_start || (haddr + HPAGE_PMD_SIZE) > vma->vm_end) {
       // pr_info("haddr < vma->vm_start || (haddr + HPAGE_PMD_SIZE) > vma->vm_end INVALID haddr = %lx vma->vm_start = %lx vma->vm_end = %lx", haddr, vma->vm_start, vma->vm_end);
       leaf_value = mark_invalid_rm(leaf_value);
@@ -439,6 +454,7 @@ struct page *rm_alloc_from_reservation(struct vm_area_struct *vma, unsigned long
       page = NULL;
       goto out_unlock;
     }
+    
     // if (region_offset != 0) {
     //   *create_region_not_alligned = true;
     //   page = NULL;
@@ -457,13 +473,17 @@ struct page *rm_alloc_from_reservation(struct vm_area_struct *vma, unsigned long
       *err_alloc = true;
       goto out_unlock;
     }
+
+    // pr_info("rm_alloc_from_reservation PageTransCompound(page) = %d haddr = %lx address = %lx page_to_pfn(page) = %lx page_count(page) = %d total_mapcount(page) = %d page_mapcount(page) = %d is_invalid = %d", PageTransCompound(page), haddr, address, page_to_pfn(page), page_count(page), total_mapcount(page), page_mapcount(page), is_invalid_rm(leaf_value));
+
+
     // create a leaf node
     leaf_value = create_value(page);
     bitmap_zero(mask, 512);
 
     cur_node->items[index].timestamp = jiffies_to_msecs(jiffies);
     // pr_alert("osa_hpage_enter_list");
-    osa_hpage_enter_list(&cur_node->items[index]);
+    // osa_hpage_enter_list(&cur_node->items[index]);
     // wake_up_interruptible(&osa_hpage_scand_wait);
   } else {
     if (PageTransCompound(page)) {
@@ -481,7 +501,7 @@ struct page *rm_alloc_from_reservation(struct vm_area_struct *vma, unsigned long
   // }
 
   if (!test_bit(region_offset, mask)) {
-    clear_highpage(page);
+    clear_highpages(page, 1);
     get_page(page);
   } else {
     // pr_alert("out = true haddr = %lx page_to_pfn(page) = %lx page_to_pfn(head) = %lx", haddr, page_to_pfn(page), page_to_pfn(page - region_offset));
@@ -517,7 +537,7 @@ void rm_destroy(struct rm_node *node, unsigned char level) { //not thread-safe
         if (!is_invalid_rm((unsigned long)cur_node->items[index].next_node)) {
           leaf_value = (unsigned long)(cur_node->items[index].next_node);
           next_lock = &cur_node->items[index].lock;
-          osa_hpage_exit_list(&cur_node->items[index]);
+          // osa_hpage_exit_list(&cur_node->items[index]);
           page = get_page_from_rm(leaf_value);
             
           // pr_info("rm_destroy PageTransCompound(page) = %d page_to_pfn(page) = %lx page_count(page) = %d total_mapcount(page) = %d page_mapcount(page) = %d", PageTransCompound(page), page_to_pfn(page), page_count(page), total_mapcount(page), page_mapcount(page));

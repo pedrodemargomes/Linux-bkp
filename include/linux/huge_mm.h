@@ -159,6 +159,8 @@ void __split_huge_pmd(struct vm_area_struct *vma, pmd_t *pmd,
 						false, NULL);		\
 	}  while (0)
 
+unsigned long deferred_split_scan(struct shrinker *shrink,
+		struct shrink_control *sc);
 
 void split_huge_pmd_address(struct vm_area_struct *vma, unsigned long address,
 		bool freeze, struct page *page);

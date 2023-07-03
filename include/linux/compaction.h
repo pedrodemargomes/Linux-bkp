@@ -110,6 +110,8 @@ extern bool compaction_restarting(struct zone *zone, int order);
 
 extern void compact_reservation(struct list_head *pageblocks_to_migrate);
 
+extern void compact_node(int nid);
+
 /* Compaction has made some progress and retrying makes sense */
 static inline bool compaction_made_progress(enum compact_result result)
 {

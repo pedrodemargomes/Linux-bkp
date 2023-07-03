@@ -1463,19 +1463,20 @@ good_area:
 
 	struct rm_entry *rm_entry;
 	unsigned long *mask = NULL;
+	unsigned long haddr = address & RESERV_MASK;
 	unsigned long hstart = (vma->vm_start + ~HPAGE_PMD_MASK) & HPAGE_PMD_MASK;
 	unsigned long hend = vma->vm_end & HPAGE_PMD_MASK;
 	rm_entry = get_rm_entry_from_reservation(vma, address, &mask);
-	if (!(address < hstart || address + HPAGE_PMD_SIZE > hend) && rm_entry && mask != NULL && bitmap_weight(mask, 512) > 64) {
+	if (!( haddr < hstart || haddr + HPAGE_PMD_SIZE > hend) && rm_entry && mask != NULL && bitmap_weight(mask, 512) > 64) {
 		down_write(&mm->mmap_sem);
 		rm_entry = get_rm_entry_from_reservation(vma, address, &mask);
 
-		if ( !(!(address < hstart || address + HPAGE_PMD_SIZE > hend) && rm_entry && rm_entry->mask != NULL && bitmap_weight(rm_entry->mask, 512) > 64) ) {
+		if ( !(!(haddr < hstart || haddr + HPAGE_PMD_SIZE > hend) && rm_entry && rm_entry->mask != NULL && bitmap_weight(rm_entry->mask, 512) > 64) ) {
 			// pr_info("+++");
 			goto out;
 		}
 
-		if (is_invalid_rm((unsigned long) rm_entry->next_node))
+		// if (is_invalid_rm((unsigned long) rm_entry->next_node))
 			// pr_info("+++ is_invalid_rm +++");
 
 		if (!rm_entry->next_node) {
@@ -1483,7 +1484,7 @@ good_area:
 			goto out;
 		}
 
-		int result = hugepage_vma_revalidate(mm, address, &vma);
+		int result = hugepage_vma_revalidate(mm, haddr, &vma);
 		if (result) {
 			// pr_info("goto out hugepage_vma_revalidate");
 			goto out;
@@ -1498,7 +1499,6 @@ good_area:
 
 		lru_add_drain_all(); // drena os LRUs
 		
-		unsigned long haddr = address & RESERV_MASK;
 		struct page *head = get_page_from_rm((unsigned long) rm_entry->next_node);
 		// pr_info("page_to_pfn(head) = %lx rm_entry->next_node = %p haddr = %lx mask = %d", page_to_pfn(head),  rm_entry->next_node, haddr, bitmap_weight(mask, 512));
 		if (PageTransCompound(head)) {
@@ -1510,7 +1510,7 @@ good_area:
 		int retPrmtHugePage = promote_huge_page_address(vma, head, haddr);
 		if (!retPrmtHugePage) {
 			// pr_info("promote_huge_page_address SUCCESS page_to_pfn(head) = %lx haddr = %lx mask weight = %d", page_to_pfn(head), haddr, bitmap_weight(mask, 512));
-			osa_hpage_exit_list(rm_entry);
+			// osa_hpage_exit_list(rm_entry);
 			up_write(&mm->mmap_sem);
 			return ;
 		} 
