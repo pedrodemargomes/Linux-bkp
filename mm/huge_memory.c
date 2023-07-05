@@ -2815,9 +2815,9 @@ int promote_huge_pmd_address(struct vm_area_struct *vma, unsigned long haddr, st
 			// #ifdef DEBUG_RESERV_THP
 			// pr_alert("else");
 
-			if (page_to_pfn(pte_page(pteval)) != page_to_pfn(page)) {
-				pr_info("ERROR: page_to_pfn(pte_page(pteval)) %lx != page_to_pfn(page) %lx", page_to_pfn(pte_page(pteval)), page_to_pfn(page));
-			}
+			// if (page_to_pfn(pte_page(pteval)) != page_to_pfn(page)) {
+			// 	pr_info("ERROR: page_to_pfn(pte_page(pteval)) %lx != page_to_pfn(page) %lx", page_to_pfn(pte_page(pteval)), page_to_pfn(page));
+			// }
 			// #endif
 
 			// unlock_page(page);
@@ -2835,10 +2835,10 @@ int promote_huge_pmd_address(struct vm_area_struct *vma, unsigned long haddr, st
 			pte_clear(vma->vm_mm, address, _pte);
 			// atomic_dec(&page->_mapcount);
 			page_remove_rmap(page, false);
-			if (atomic_read(&page->_mapcount) > -1) {
-				SetPageDoubleMap(head);
-				pr_alert("page double mapped");
-			}
+			// if (atomic_read(&page->_mapcount) > -1) {
+			// 	SetPageDoubleMap(head);
+			// 	pr_alert("page double mapped");
+			// }
 			spin_unlock(pte_ptl);
 		}
 		// #ifdef DEBUG_RESERV_THP
@@ -2891,12 +2891,12 @@ int promote_huge_page_address(struct vm_area_struct *vma, struct page *head, uns
 {
 	int ret;
 
-	if (haddr < vma->vm_start || (haddr + HPAGE_PMD_SIZE) > vma->vm_end) {
-		// #ifdef DEBUG_RESERV_THP
-		pr_alert("haddr < vma->vm_start || (haddr + HPAGE_PMD_SIZE) > vma->vm_end");
-		// #endif
-		return -EINVAL;
-	}
+	// if (haddr < vma->vm_start || (haddr + HPAGE_PMD_SIZE) > vma->vm_end) {
+	// 	// #ifdef DEBUG_RESERV_THP
+	// 	pr_alert("haddr < vma->vm_start || (haddr + HPAGE_PMD_SIZE) > vma->vm_end");
+	// 	// #endif
+	// 	return -EINVAL;
+	// }
 
 	// pmd_t *pmd = mm_find_pmd(vma->vm_mm, haddr);
 	// if (!pmd || pmd_trans_huge(*pmd)) {
