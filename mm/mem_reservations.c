@@ -103,7 +103,7 @@ extern void rm_release_reservation(struct vm_area_struct *vma, unsigned long add
   if (mark_valid_rm(leaf_value) != 0) {
     page = get_page_from_rm(leaf_value);
 
-    // osa_hpage_exit_list(&cur_node->items[index]);
+    osa_hpage_exit_list(&cur_node->items[index]);
     // #ifdef DEBUG_RESERV_THP
     // pr_info("rm_release PageTransCompound(page) = %d haddr = %lx address = %lx page_to_pfn(page) = %lx page_count(page) = %d total_mapcount(page) = %d page_mapcount(page) = %d is_invalid = %d Caller %pS", PageTransCompound(page), haddr, address, page_to_pfn(page), page_count(page), total_mapcount(page), page_mapcount(page), is_invalid_rm(leaf_value), __builtin_return_address(0));
     // #endif
@@ -483,7 +483,7 @@ struct page *rm_alloc_from_reservation(struct vm_area_struct *vma, unsigned long
 
     cur_node->items[index].timestamp = jiffies_to_msecs(jiffies);
     // pr_alert("osa_hpage_enter_list");
-    // osa_hpage_enter_list(&cur_node->items[index]);
+    osa_hpage_enter_list(&cur_node->items[index]);
     // wake_up_interruptible(&osa_hpage_scand_wait);
   } else {
     if (PageTransCompound(page)) {
@@ -537,7 +537,7 @@ void rm_destroy(struct rm_node *node, unsigned char level) { //not thread-safe
         if (!is_invalid_rm((unsigned long)cur_node->items[index].next_node)) {
           leaf_value = (unsigned long)(cur_node->items[index].next_node);
           next_lock = &cur_node->items[index].lock;
-          // osa_hpage_exit_list(&cur_node->items[index]);
+          osa_hpage_exit_list(&cur_node->items[index]);
           page = get_page_from_rm(leaf_value);
             
           // pr_info("rm_destroy PageTransCompound(page) = %d page_to_pfn(page) = %lx page_count(page) = %d total_mapcount(page) = %d page_mapcount(page) = %d", PageTransCompound(page), page_to_pfn(page), page_count(page), total_mapcount(page), page_mapcount(page));

@@ -520,6 +520,7 @@ SYSCALL_DEFINE5(mremap, unsigned long, addr, unsigned long, old_len,
 		unsigned long, new_addr)
 {
 	struct mm_struct *mm = current->mm;
+	pr_info("mremap pid = %d", mm->owner->pid);
 	struct vm_area_struct *vma;
 	unsigned long ret = -EINVAL;
 	unsigned long charged = 0;

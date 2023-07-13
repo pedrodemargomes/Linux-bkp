@@ -3434,7 +3434,7 @@ static vm_fault_t do_anonymous_page(struct vm_fault *vmf)
 	}
 	// pr_alert("> vma->vm_mm->owner->cred->uid = %ld", vma->vm_mm->owner->cred->uid);
 	if (GET_RM_ROOT(vma) /*&& !uid_eq(vma->vm_mm->owner->cred->uid, GLOBAL_ROOT_UID)*/ ) {
-		page = rm_alloc_from_reservation(vma, vmf->address, &out, &err_alloc, ((GFP_HIGHUSER | __GFP_NOMEMALLOC | __GFP_NOWARN | __GFP_RESERVE) & ~__GFP_RECLAIM));
+		page = rm_alloc_from_reservation(vma, vmf->address, &out, &err_alloc, ((GFP_HIGHUSER_MOVABLE | __GFP_NOMEMALLOC | __GFP_NOWARN | __GFP_RESERVE) & ~__GFP_RECLAIM));
 		if (out)
 			return 0;
 

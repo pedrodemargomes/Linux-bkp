@@ -1511,7 +1511,7 @@ good_area:
 			int retPrmtHugePage = promote_huge_page_address(vma, head, haddr);
 			if (!retPrmtHugePage) {
 				// pr_info("promote_huge_page_address SUCCESS page_to_pfn(head) = %lx haddr = %lx mask weight = %d", page_to_pfn(head), haddr, bitmap_weight(mask, 512));
-				// osa_hpage_exit_list(rm_entry);
+				osa_hpage_exit_list(rm_entry);
 				up_write(&mm->mmap_sem);
 				return ;
 			} 

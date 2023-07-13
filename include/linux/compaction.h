@@ -85,7 +85,6 @@ static inline unsigned long compact_gap(unsigned int order)
 
 #ifdef CONFIG_COMPACTION
 extern int sysctl_compact_memory;
-extern int sysctl_compaction_proactiveness;
 extern int sysctl_compaction_handler(struct ctl_table *table, int write,
 			void __user *buffer, size_t *length, loff_t *ppos);
 extern int sysctl_extfrag_threshold;
@@ -111,6 +110,7 @@ extern bool compaction_restarting(struct zone *zone, int order);
 extern void compact_reservation(struct list_head *pageblocks_to_migrate);
 
 extern void compact_node(int nid);
+extern void compact_nodes(void);
 
 /* Compaction has made some progress and retrying makes sense */
 static inline bool compaction_made_progress(enum compact_result result)

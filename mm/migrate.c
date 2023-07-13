@@ -1086,6 +1086,9 @@ static int __unmap_and_move(struct page *page, struct page *newpage,
 		goto out_unlock;
 
 	if (unlikely(!is_lru)) {
+		// if (page->reservation == 665) {
+		// 	pr_info("unlikely(!is_lru) page_to_pfn(page) = %lx", page_to_pfn(page));
+		// }
 		rc = move_to_new_page(newpage, page, mode);
 		goto out_unlock_both;
 	}
@@ -1109,6 +1112,9 @@ static int __unmap_and_move(struct page *page, struct page *newpage,
 			goto out_unlock_both;
 		}
 	} else if (page_mapped(page)) {
+		// if (page->reservation == 665) {
+		// 	pr_info("page_mapped(page) page_to_pfn(page) = %lx", page_to_pfn(page));
+		// }
 		/* Establish migration ptes */
 		VM_BUG_ON_PAGE(PageAnon(page) && !PageKsm(page) && !anon_vma,
 				page);
@@ -1432,8 +1438,8 @@ retry:
 			// 	pr_alert("FAIL migrating reserved page_count(page) = %d total_mapcount(page) = %d page_mapping(page) = %p page_to_pfn(page) = %lx", page_count(page), total_mapcount(page), page_mapping(page), page_to_pfn(page));
 			// }
 
-			// if ((int)page->reservation == 665) {
-			// 	pr_alert("FAIL migrating reserved 665 page_count(page) = %d total_mapcount(page) = %d page_mapping(page) = %p page_to_pfn(page) = %lx", page_count(page), total_mapcount(page), page_mapping(page), page_to_pfn(page));
+			// if (page->reservation == 665) {
+			// 	pr_info("migrate_pages page_to_pfn(page) = %lx", page_to_pfn(page));
 			// }
 
 			if (PageHuge(page))
@@ -1474,6 +1480,9 @@ retry:
 				break;
 			case MIGRATEPAGE_SUCCESS:
 				nr_succeeded++;
+				// if (page->reservation == 665) {
+				// 	pr_info("MIGRATEPAGE_SUCCESS page_to_pfn(page) = %lx", page_to_pfn(page));
+				// }
 				break;
 			default:
 				/*
