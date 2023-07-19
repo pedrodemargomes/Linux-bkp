@@ -1552,7 +1552,7 @@ bool compaction_zonelist_suitable(struct alloc_context *ac, int order,
 
 static enum compact_result compact_zone(struct zone *zone, struct compact_control *cc)
 {
-	pr_info("compact_zone %s", zone->name);
+	// pr_info("compact_zone %s", zone->name);
 	enum compact_result ret;
 	unsigned long start_pfn = zone->zone_start_pfn;
 	unsigned long end_pfn = zone_end_pfn(zone);

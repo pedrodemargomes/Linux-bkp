@@ -3044,7 +3044,7 @@ int split_huge_page_to_list(struct page *page, struct list_head *list)
 	 */
 	if (!can_split_huge_page(head, &extra_pins)) {
 		ret = -EBUSY;
-		pr_alert("!can_split_huge_page");
+		pr_info("!can_split_huge_page page_to_pfn(head) = %lx PageTransCompound(head) = %d page_mapcount(page) = %d page_count(page) = %d extra_pins = %d", page_to_pfn(page), PageTransCompound(page), page_mapcount(page), page_count(page), extra_pins);
 		goto out_unlock;
 	}
 

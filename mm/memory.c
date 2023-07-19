@@ -1387,8 +1387,8 @@ again:
 			rss[mm_counter(page)]--;
 			page_remove_rmap(page, false);
 			if (unlikely(page_mapcount(page) < 0)) {
-				pr_alert("print_bad_pte page_mapcount");
-				print_bad_pte(vma, addr, ptent, page);
+				pr_alert("print_bad_pte page_mapcount page_to_pfn(page) = %lx PageTransCompound(page) = %d pmd_trans_huge(*pmd) = %d", page_to_pfn(page), PageTransCompound(page), pmd_trans_huge(*pmd));
+				// print_bad_pte(vma, addr, ptent, page);
 			}
 			if (unlikely(__tlb_remove_page(tlb, page))) {
 				force_flush = 1;

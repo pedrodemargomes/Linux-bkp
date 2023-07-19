@@ -174,10 +174,10 @@ void osa_hpage_do_scan(void)
 	}
 	spin_unlock(&osa_hpage_list_lock);
 
-	pr_info("num_freed = %d", num_freed);
-	pr_info("list_size = %d", list_size);
+	// pr_info("num_freed = %d", num_freed);
+	// pr_info("list_size = %d", list_size);
 	int split = deferred_split_scan(NULL, &sc);
-	pr_info("split = %d", split);
+	// pr_info("split = %d", split);
 
 	compact_nodes();
 

@@ -24,6 +24,7 @@
 #include <linux/swapops.h>
 #include <linux/shmem_fs.h>
 #include <linux/mmu_notifier.h>
+#include <linux/mem_reservations.h>
 
 #include <asm/tlb.h>
 
@@ -473,6 +474,10 @@ static int madvise_free_single_vma(struct vm_area_struct *vma,
 	if (end <= vma->vm_start)
 		return -EINVAL;
 
+	unsigned long it_addr = start;
+	for (; it_addr < end; it_addr += PAGE_SIZE)
+		rm_release_reservation(vma, it_addr, false);
+
 	lru_add_drain();
 	tlb_gather_mmu(&tlb, mm, start, end);
 	update_hiwater_rss(mm);
@@ -507,6 +512,14 @@ static int madvise_free_single_vma(struct vm_area_struct *vma,
 static long madvise_dontneed_single_vma(struct vm_area_struct *vma,
 					unsigned long start, unsigned long end)
 {
+	if(vma_is_anonymous(vma)) {
+		unsigned long it_addr = start;
+		for (; it_addr < end; it_addr += PAGE_SIZE) {
+			// pr_info("rm_release_reservation do_munmap");
+			rm_release_reservation(vma, it_addr, false);
+		}
+	}
+
 	zap_page_range(vma, start, end - start);
 	return 0;
 }
@@ -712,8 +725,8 @@ madvise_behavior_valid(int behavior)
 	case MADV_RANDOM:
 	case MADV_REMOVE:
 	case MADV_WILLNEED:
-	// case MADV_DONTNEED:
-	// case MADV_FREE:
+	case MADV_DONTNEED:
+	case MADV_FREE:
 #ifdef CONFIG_KSM
 	case MADV_MERGEABLE:
 	case MADV_UNMERGEABLE:
