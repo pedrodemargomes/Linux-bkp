@@ -95,6 +95,7 @@ struct rm_entry *get_rm_entry_from_reservation(struct vm_area_struct *vma, unsig
 
 extern void rm_release_reservation(struct vm_area_struct *vma, unsigned long address, bool leave_valid);
 extern void rm_release_reservation_fast(struct rm_entry *rm_entry);
+extern void rm_invalidate_reservation(struct vm_area_struct *vma, unsigned long address);
 
 void rm_print_freq(struct rm_node *node, unsigned char level);
 

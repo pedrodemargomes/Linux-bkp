@@ -560,8 +560,8 @@ static void bad_page(struct page *page, const char *reason,
 	if (nr_shown++ == 0)
 		resume = jiffies + 60 * HZ;
 
-	pr_alert("BUG: Bad page state in process %s  pfn:%05lx\n",
-		current->comm, page_to_pfn(page));
+	pr_alert("BUG: Bad page state in process %s  pfn:%05lx\n PageTransCompound(page) = %d",
+		current->comm, page_to_pfn(page), PageTransCompound(page));
 	__dump_page(page, reason);
 	bad_flags &= page->flags;
 	if (bad_flags)

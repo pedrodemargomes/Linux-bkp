@@ -499,6 +499,15 @@ static __latent_entropy int dup_mmap(struct mm_struct *mm,
 		if (retval)
 			goto fail_nomem_policy;
 		tmp->vm_mm = mm;
+
+		// Invalidade vma reservations
+		if (vma_is_anonymous(mpnt)) {
+			unsigned long it_addr;
+			for (it_addr = tmp->vm_start; it_addr < tmp->vm_end; it_addr += PAGE_SIZE) {
+				rm_invalidate_reservation(tmp, it_addr);
+			}
+		}
+
 		retval = dup_userfaultfd(tmp, &uf);
 		if (retval)
 			goto fail_nomem_anon_vma_fork;

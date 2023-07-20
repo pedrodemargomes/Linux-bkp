@@ -51,6 +51,56 @@ struct rm_node* rm_node_create() {
   return new;
 }
 
+extern void rm_invalidate_reservation(struct vm_area_struct *vma, unsigned long address) {
+  unsigned char level;
+  unsigned int i;
+  int j;
+  unsigned int index;
+  int unused;
+
+  struct rm_node *cur_node = GET_RM_ROOT(vma);
+  struct rm_node *next_node;
+  
+  unsigned long leaf_value;
+  unsigned long *mask;
+
+  struct page *page;
+  spinlock_t  *next_lock;
+
+	unsigned long haddr = address & RESERV_MASK; 
+  int region_offset   = (address & (~RESERV_MASK)) >> PAGE_SHIFT;
+
+  if (cur_node == NULL) 
+    return;
+  if (!vma_is_anonymous(vma)) {
+    return;
+  }
+
+  // traverse the reservation map radix tree
+  // firstly, go through all levels but don't go to the leaf node
+  for (level = 1; level < NUM_RT_LEVELS; level++) {
+    index = get_node_index(level, address);
+    next_lock = &cur_node->items[index].lock;
+
+    spin_lock(next_lock);
+    if (cur_node->items[index].next_node == NULL) {
+      cur_node->items[index].next_node = rm_node_create();
+    }
+    spin_unlock(next_lock);
+    cur_node = cur_node->items[index].next_node;
+  }
+
+  // secondly, process the leaf node
+  level = NUM_RT_LEVELS;
+  index = get_node_index(level, address); 
+  next_lock = &cur_node->items[index].lock;
+
+  spin_lock(next_lock);
+  cur_node->items[index].next_node = mark_invalid_rm(0);
+  spin_unlock(next_lock);
+  return;
+}
+
 extern void rm_release_reservation(struct vm_area_struct *vma, unsigned long address, bool leave_valid) {
   unsigned char level;
   unsigned int i;
@@ -105,7 +155,7 @@ extern void rm_release_reservation(struct vm_area_struct *vma, unsigned long add
 
     osa_hpage_exit_list(&cur_node->items[index]);
     // #ifdef DEBUG_RESERV_THP
-    // pr_info("rm_release PageTransCompound(page) = %d haddr = %lx address = %lx page_to_pfn(page) = %lx page_count(page) = %d total_mapcount(page) = %d page_mapcount(page) = %d is_invalid = %d Caller %pS", PageTransCompound(page), haddr, address, page_to_pfn(page), page_count(page), total_mapcount(page), page_mapcount(page), is_invalid_rm(leaf_value), __builtin_return_address(0));
+    // pr_info("rm_release PageTransCompound(page) = %d haddr = %lx address = %lx page_to_pfn(page) = %lx page_count(page) = %d total_mapcount(page) = %d page_mapcount(page) = %d is_invalid = %d leave_valid = %d Caller %pS", PageTransCompound(page), haddr, address, page_to_pfn(page), page_count(page), total_mapcount(page), page_mapcount(page), is_invalid_rm(leaf_value), leave_valid, __builtin_return_address(0));
     // #endif
     if (PageTransCompound(page)) {
       // #ifdef DEBUG_RESERV_THP
@@ -464,7 +514,7 @@ struct page *rm_alloc_from_reservation(struct vm_area_struct *vma, unsigned long
 
     page = alloc_pages_vma(gfp, RESERV_ORDER, vma, haddr, numa_node_id(), false);
     if (!page) {
-			// pr_alert("alloc_pages_vma FAILED haddr = %lx weight mask = %d", haddr, bitmap_weight(mask, 512));
+			// pr_info("alloc_pages_vma FAILED haddr = %lx weight mask = %d", haddr, bitmap_weight(mask, 512));
       // Mark node as invalid to not use as a reservation anymore
       leaf_value = mark_invalid_rm(leaf_value);
       cur_node->items[index].next_node = (void*)(leaf_value);
@@ -487,7 +537,7 @@ struct page *rm_alloc_from_reservation(struct vm_area_struct *vma, unsigned long
     // wake_up_interruptible(&osa_hpage_scand_wait);
   } else {
     if (PageTransCompound(page)) {
-      // pr_alert("rm_alloc PageTransCompound(page) goto out_unlock");
+      // pr_info("rm_alloc PageTransCompound(page) goto out_unlock haddr = %lx page_to_pfn(page) = %lx", haddr, page_to_pfn(page));
       *out = true;
       goto out_unlock;
     }
@@ -540,7 +590,7 @@ void rm_destroy(struct rm_node *node, unsigned char level) { //not thread-safe
           osa_hpage_exit_list(&cur_node->items[index]);
           page = get_page_from_rm(leaf_value);
             
-          // pr_info("rm_destroy PageTransCompound(page) = %d page_to_pfn(page) = %lx page_count(page) = %d total_mapcount(page) = %d page_mapcount(page) = %d", PageTransCompound(page), page_to_pfn(page), page_count(page), total_mapcount(page), page_mapcount(page));
+          // pr_info("rm_destroy VALID PageTransCompound(page) = %d page_to_pfn(page) = %lx page_count(page) = %d total_mapcount(page) = %d page_mapcount(page) = %d", PageTransCompound(page), page_to_pfn(page), page_count(page), total_mapcount(page), page_mapcount(page));
 
           if (PageTransCompound(page)) {
             put_page(page);

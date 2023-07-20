@@ -1478,7 +1478,7 @@ good_area:
 			}
 
 			// if (is_invalid_rm((unsigned long) rm_entry->next_node))
-				// pr_info("+++ is_invalid_rm +++");
+			// 	pr_info("+++ is_invalid_rm +++");
 
 			if (!rm_entry->next_node) {
 				// pr_info("!rm_entry->next_node");
@@ -1510,7 +1510,7 @@ good_area:
 			// pr_info("promote_huge_page_address try to promote page_to_pfn(head) = %lx head = %llx haddr = %lx mask weight = %d", page_to_pfn(head), head, haddr, bitmap_weight(mask, 512));
 			int retPrmtHugePage = promote_huge_page_address(vma, head, haddr);
 			if (!retPrmtHugePage) {
-				// pr_info("promote_huge_page_address SUCCESS page_to_pfn(head) = %lx haddr = %lx mask weight = %d", page_to_pfn(head), haddr, bitmap_weight(mask, 512));
+				// pr_info("promote_huge_page_address SUCCESS page_to_pfn(head) = %lx haddr = %lx mask weight = %d vm_flags = %lx", page_to_pfn(head), haddr, bitmap_weight(mask, 512), vma->vm_flags);
 				osa_hpage_exit_list(rm_entry);
 				up_write(&mm->mmap_sem);
 				return ;

@@ -2672,7 +2672,7 @@ static vm_fault_t wp_page_copy(struct vm_fault *vmf)
 		if (!new_page)
 			goto oom;
 	} else {
-    	rm_release_reservation(vma, vmf->address, false);
+    	// rm_release_reservation(vma, vmf->address, false);
 		new_page = alloc_page_vma(GFP_HIGHUSER_MOVABLE, vma,
 				vmf->address);
 		if (!new_page)
