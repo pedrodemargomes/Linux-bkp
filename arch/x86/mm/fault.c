@@ -1468,11 +1468,11 @@ good_area:
 		unsigned long hstart = (vma->vm_start + ~HPAGE_PMD_MASK) & HPAGE_PMD_MASK;
 		unsigned long hend = vma->vm_end & HPAGE_PMD_MASK;
 		rm_entry = get_rm_entry_from_reservation(vma, address, &mask);
-		if (!( haddr < hstart || haddr + HPAGE_PMD_SIZE > hend) && rm_entry && mask != NULL && bitmap_weight(mask, 512) > 64) {
+		if (!( haddr < hstart || haddr + HPAGE_PMD_SIZE > hend) && rm_entry && mask != NULL && bitmap_weight(mask, 512) > 0) {
 			down_write(&mm->mmap_sem);
 			rm_entry = get_rm_entry_from_reservation(vma, address, &mask);
 
-			if ( !(!(haddr < hstart || haddr + HPAGE_PMD_SIZE > hend) && rm_entry && rm_entry->mask != NULL && bitmap_weight(rm_entry->mask, 512) > 64) ) {
+			if ( !(!(haddr < hstart || haddr + HPAGE_PMD_SIZE > hend) && rm_entry && rm_entry->mask != NULL && bitmap_weight(rm_entry->mask, 512) > 0) ) {
 				// pr_info("+++");
 				goto out;
 			}
@@ -1511,7 +1511,7 @@ good_area:
 			int retPrmtHugePage = promote_huge_page_address(vma, head, haddr);
 			if (!retPrmtHugePage) {
 				// pr_info("promote_huge_page_address SUCCESS page_to_pfn(head) = %lx haddr = %lx mask weight = %d vm_flags = %lx", page_to_pfn(head), haddr, bitmap_weight(mask, 512), vma->vm_flags);
-				osa_hpage_exit_list(rm_entry);
+				// osa_hpage_exit_list(rm_entry);
 				up_write(&mm->mmap_sem);
 				return ;
 			} 

@@ -1,0 +1,279 @@
+# ========
+# captured on    : Tue Jul 25 17:37:59 2023
+# header version : 1
+# data offset    : 328
+# data size      : 367323456
+# feat offset    : 367323784
+# hostname : ryzoh
+# os release : 4.19.252thp-reserved+
+# perf version : 4.19.252.gc543a
+# arch : x86_64
+# nrcpus online : 12
+# nrcpus avail : 12
+# cpudesc : AMD Ryzen 5 3600X 6-Core Processor
+# cpuid : AuthenticAMD,23,113,0
+# total memory : 16367864 kB
+# cmdline : /home/pedro/linux-env/linux/tools/perf/perf record -a -g 
+# event : name = cycles, , id = { 20, 21, 22, 23, 24, 25, 26, 27, 28, 29, 30, 31 }, size = 112, { sample_period, sample_freq } = 4000, sample_type = IP|TID|TIME|CALLCHAIN|CPU|PERIOD, read_format = ID, disabled = 1, inherit = 1, mmap = 1, comm = 1, freq = 1, task = 1, sample_id_all = 1, exclude_guest = 1, mmap2 = 1, comm_exec = 1
+# CPU_TOPOLOGY info available, use -I to display
+# NUMA_TOPOLOGY info available, use -I to display
+# pmu mappings: amd_df = 8, software = 1, ibs_op = 11, ibs_fetch = 10, uprobe = 7, cpu = 4, amd_iommu_0 = 12, breakpoint = 5, amd_l3 = 9, tracepoint = 2, kprobe = 6, msr = 13
+# CACHE info available, use -I to display
+# time of first sample : 220.762261
+# time of last sample : 328.729840
+# sample duration : 107967.579 ms
+# MEM_TOPOLOGY info available, use -I to display
+# missing features: TRACING_DATA BRANCH_STACK GROUP_DESC AUXTRACE STAT 
+# ========
+#
+#
+# Total Lost Samples: 0
+#
+# Samples: 2M of event 'cycles'
+# Event count (approx.): 2860198748834
+#
+# Overhead  Command          Parent symbol
+# ........  ...............  .............
+#
+    99.29%  pagerank         [other]      
+            |          
+            |--91.45%--0x726574746977742f
+            |          |          
+            |           --91.45%--0x36
+            |                     |          
+            |                      --91.45%--0x5575fc546f80
+            |                                |          
+            |                                |--5.16%--0x5575fc54eb08
+            |                                |          |          
+            |                                |           --5.16%--0x5575fc54f100
+            |                                |                     0x7fff7de97600
+            |                                |                     |          
+            |                                |                      --5.16%--_ZN8graphchi12memory_shardIffNS_15graphchi_vertexIffEEE13load_verticesEjjRSt6vectorIS2_SaIS2_EEbb._omp_fn.0
+            |                                |          
+            |                                |--5.07%--0x7f0a08000fd8
+            |                                |          |          
+            |                                |           --5.07%--0x5575fc54f100
+            |                                |                     0x7fff7de97600
+            |                                |                     |          
+            |                                |                      --5.07%--_ZN8graphchi12memory_shardIffNS_15graphchi_vertexIffEEE13load_verticesEjjRSt6vectorIS2_SaIS2_EEbb._omp_fn.0
+            |                                |          
+            |                                |--5.06%--0x7f0a08000fa0
+            |                                |          |          
+            |                                |           --5.06%--0x5575fc54f4e0
+            |                                |                     |          
+            |                                |                      --5.06%--0x7fff7de97600
+            |                                |                                _ZN8graphchi12memory_shardIffNS_15graphchi_vertexIffEEE13load_verticesEjjRSt6vectorIS2_SaIS2_EEbb._omp_fn.0
+            |                                |          
+            |                                |--4.99%--0x7f0a08000f98
+            |                                |          |          
+            |                                |           --4.99%--0x5575fc54f100
+            |                                |                     0x7fff7de97600
+            |                                |                     |          
+            |                                |                      --4.99%--_ZN8graphchi12memory_shardIffNS_15graphchi_vertexIffEEE13load_verticesEjjRSt6vectorIS2_SaIS2_EEbb._omp_fn.0
+            |                                |          
+            |                                |--4.94%--0x5575fc54eb00
+            |                                |          |          
+            |                                |           --4.94%--0x5575fc54f4e0
+            |                                |                     |          
+            |                                |                      --4.94%--0x7fff7de97600
+            |                                |                                _ZN8graphchi12memory_shardIffNS_15graphchi_vertexIffEEE13load_verticesEjjRSt6vectorIS2_SaIS2_EEbb._omp_fn.0
+            |                                |          
+            |                                |--4.91%--0x7f0a08000fd0
+            |                                |          |          
+            |                                |           --4.91%--0x5575fc54f4e0
+            |                                |                     0x7fff7de97600
+            |                                |                     |          
+            |                                |                      --4.91%--_ZN8graphchi12memory_shardIffNS_15graphchi_vertexIffEEE13load_verticesEjjRSt6vectorIS2_SaIS2_EEbb._omp_fn.0
+            |                                |          
+            |                                |--4.59%--0x5575fc54eb10
+            |                                |          |          
+            |                                |           --4.59%--0x5575fc54f4e0
+            |                                |                     0x7fff7de97600
+            |                                |                     _ZN8graphchi12memory_shardIffNS_15graphchi_vertexIffEEE13load_verticesEjjRSt6vectorIS2_SaIS2_EEbb._omp_fn.0
+            |                                |          
+            |                                |--4.58%--0x5575fc54eb20
+            |                                |          |          
+            |                                |           --4.58%--0x5575fc54f4e0
+            |                                |                     0x7fff7de97600
+            |                                |                     |          
+            |                                |                      --4.58%--_ZN8graphchi12memory_shardIffNS_15graphchi_vertexIffEEE13load_verticesEjjRSt6vectorIS2_SaIS2_EEbb._omp_fn.0
+            |                                |          
+            |                                |--4.55%--0x7f0a08000ff0
+            |                                |          |          
+            |                                |           --4.55%--0x5575fc54f4e0
+            |                                |                     0x7fff7de97600
+            |                                |                     _ZN8graphchi12memory_shardIffNS_15graphchi_vertexIffEEE13load_verticesEjjRSt6vectorIS2_SaIS2_EEbb._omp_fn.0
+            |                                |          
+            |                                |--4.54%--0x7f0a08000fb8
+            |                                |          |          
+            |                                |           --4.54%--0x5575fc54f100
+            |                                |                     0x7fff7de97600
+            |                                |                     |          
+            |                                |                      --4.54%--_ZN8graphchi12memory_shardIffNS_15graphchi_vertexIffEEE13load_verticesEjjRSt6vectorIS2_SaIS2_EEbb._omp_fn.0
+            |                                |          
+            |                                |--4.51%--0x7f0a08000fa8
+            |                                |          |          
+            |                                |           --4.51%--0x5575fc54f100
+            |                                |                     0x7fff7de97600
+            |                                |                     |          
+            |                                |                      --4.51%--_ZN8graphchi12memory_shardIffNS_15graphchi_vertexIffEEE13load_verticesEjjRSt6vectorIS2_SaIS2_EEbb._omp_fn.0
+            |                                |          
+            |                                |--4.50%--0x7f0a08000fe0
+            |                                |          |          
+            |                                |           --4.50%--0x5575fc54f4e0
+            |                                |                     0x7fff7de97600
+            |                                |                     |          
+            |                                |                      --4.50%--_ZN8graphchi12memory_shardIffNS_15graphchi_vertexIffEEE13load_verticesEjjRSt6vectorIS2_SaIS2_EEbb._omp_fn.0
+            |                                |          
+            |                                |--4.13%--0x5575fc54eaf8
+            |                                |          |          
+            |                                |           --4.13%--0x5575fc54f100
+            |                                |                     0x7fff7de97600
+            |                                |                     _ZN8graphchi12memory_shardIffNS_15graphchi_vertexIffEEE13load_verticesEjjRSt6vectorIS2_SaIS2_EEbb._omp_fn.0
+            |                                |          
+            |                                |--4.13%--0x5575fc54eb30
+            |                                |          |          
+            |                                |           --4.12%--0x5575fc54f4e0
+            |                                |                     0x7fff7de97600
+            |                                |                     _ZN8graphchi12memory_shardIffNS_15graphchi_vertexIffEEE13load_verticesEjjRSt6vectorIS2_SaIS2_EEbb._omp_fn.0
+            |                                |          
+            |                                |--4.08%--0x7f0a08000fc8
+            |                                |          |          
+            |                                |           --4.08%--0x5575fc54f100
+            |                                |                     |          
+            |                                |                      --4.08%--0x7fff7de97600
+            |                                |                                _ZN8graphchi12memory_shardIffNS_15graphchi_vertexIffEEE13load_verticesEjjRSt6vectorIS2_SaIS2_EEbb._omp_fn.0
+            |                                |          
+            |                                |--3.81%--0x5575fc5501a0
+            |                                |          |          
+            |                                |           --3.81%--0x5575fc54f4e0
+            |                                |                     0x7fff7de97600
+            |                                |                     |          
+            |                                |                      --3.81%--_ZN8graphchi12memory_shardIffNS_15graphchi_vertexIffEEE13load_verticesEjjRSt6vectorIS2_SaIS2_EEbb._omp_fn.0
+            |                                |          
+            |                                |--3.79%--0x5575fc54eb28
+            |                                |          |          
+            |                                |           --3.79%--0x5575fc54f100
+            |                                |                     0x7fff7de97600
+            |                                |                     |          
+            |                                |                      --3.79%--_ZN8graphchi12memory_shardIffNS_15graphchi_vertexIffEEE13load_verticesEjjRSt6vectorIS2_SaIS2_EEbb._omp_fn.0
+            |                                |          
+            |                                |--3.78%--0x7f0a08000fc0
+            |                                |          |          
+            |                                |           --3.78%--0x5575fc54f4e0
+            |                                |                     |          
+            |                                |                      --3.78%--0x7fff7de97600
+            |                                |                                _ZN8graphchi12memory_shardIffNS_15graphchi_vertexIffEEE13load_verticesEjjRSt6vectorIS2_SaIS2_EEbb._omp_fn.0
+            |                                |          
+            |                                |--3.47%--0x5575fc54eb18
+            |                                |          |          
+            |                                |           --3.47%--0x5575fc54f100
+            |                                |                     0x7fff7de97600
+            |                                |                     |          
+            |                                |                      --3.47%--_ZN8graphchi12memory_shardIffNS_15graphchi_vertexIffEEE13load_verticesEjjRSt6vectorIS2_SaIS2_EEbb._omp_fn.0
+            |                                |          
+            |                                |--3.44%--0x7f0a08000fe8
+            |                                |          |          
+            |                                |           --3.44%--0x5575fc54f100
+            |                                |                     0x7fff7de97600
+            |                                |                     |          
+            |                                |                      --3.44%--_ZN8graphchi12memory_shardIffNS_15graphchi_vertexIffEEE13load_verticesEjjRSt6vectorIS2_SaIS2_EEbb._omp_fn.0
+            |                                |          
+            |                                 --3.43%--0x7f0a08000fb0
+            |                                           |          
+            |                                            --3.42%--0x5575fc54f4e0
+            |                                                      0x7fff7de97600
+            |                                                      |          
+            |                                                       --3.42%--_ZN8graphchi12memory_shardIffNS_15graphchi_vertexIffEEE13load_verticesEjjRSt6vectorIS2_SaIS2_EEbb._omp_fn.0
+            |          
+            |--3.70%--0xfd89495541564100
+            |          _ZN8graphchi15graphchi_engineIffNS_15graphchi_vertexIffEEED0Ev
+            |          0x5575fc5468a0
+            |          |          
+            |           --3.59%--_ZN20PagerankProgramInmem6updateERN8graphchi15graphchi_vertexIffEERNS0_16graphchi_contextE
+            |          
+            |--0.58%--_ZN8graphchi15graphchi_engineIffNS_15graphchi_vertexIffEEE3runERNS_15GraphChiProgramIffS2_EEi
+            |          
+            |--0.58%--_ZN20PagerankProgramInmem6updateERN8graphchi15graphchi_vertexIffEERNS0_16graphchi_contextE
+            |          
+             --0.56%--_ZN8graphchi15graphchi_engineIffNS_15graphchi_vertexIffEEE12exec_updatesERNS_15GraphChiProgramIffS2_EERSt6vectorIS2_SaIS2_EE._omp_fn.1
+
+     0.43%  swapper          [other]      
+     0.08%  perf             [other]      
+     0.06%  Xorg             [other]      
+     0.03%  xfce4-terminal   [other]      
+     0.01%  i3status         [other]      
+     0.01%  i3bar            [other]      
+     0.01%  kworker/u64:7-e  [other]      
+     0.01%  kworker/8:1-mm_  [other]      
+     0.01%  kworker/11:1-mm  [other]      
+     0.01%  kworker/10:1-me  [other]      
+     0.01%  kworker/9:1-mm_  [other]      
+     0.01%  kworker/5:1-mm_  [other]      
+     0.01%  kworker/0:4-eve  [other]      
+     0.01%  kworker/6:1-eve  [other]      
+     0.01%  kworker/7:2-mm_  [other]      
+     0.01%  kworker/4:1-mm_  [other]      
+     0.01%  kworker/3:1-mm_  [other]      
+     0.01%  kworker/2:3-mm_  [other]      
+     0.01%  kworker/1:2-mm_  [other]      
+     0.00%  rcu_sched        [other]      
+     0.00%  gdbus            [other]      
+     0.00%  ibus-ui-gtk3     [other]      
+     0.00%  ibus-daemon      [other]      
+     0.00%  gmain            [other]      
+     0.00%  i3               [other]      
+     0.00%  ibus-extension-  [other]      
+     0.00%  jbd2/dm-2-8      [other]      
+     0.00%  nmbd             [other]      
+     0.00%  InputThread      [other]      
+     0.00%  kworker/u64:4-e  [other]      
+     0.00%  systemd-journal  [other]      
+     0.00%  kworker/8:1H-kb  [other]      
+     0.00%  avahi-daemon     [other]      
+     0.00%  :-1              [other]      
+     0.00%  rtkit-daemon     [other]      
+     0.00%  jbd2/dm-0-8      [other]      
+     0.00%  systemd          [other]      
+     0.00%  pagerank.sh      [other]      
+     0.00%  journal-offline  [other]      
+     0.00%  systemd-logind   [other]      
+     0.00%  migration/6      [other]      
+     0.00%  time             [other]      
+     0.00%  migration/0      [other]      
+     0.00%  rs:main Q:Reg    [other]      
+     0.00%  migration/9      [other]      
+     0.00%  kworker/3:1H-kb  [other]      
+     0.00%  ibus-engine-sim  [other]      
+     0.00%  NetworkManager   [other]      
+     0.00%  migration/10     [other]      
+     0.00%  in:imklog        [other]      
+     0.00%  ksoftirqd/2      [other]      
+     0.00%  xdg-desktop-por  [other]      
+     0.00%  bash             [other]      
+     0.00%  kworker/2:1H-kb  [other]      
+     0.00%  wpa_supplicant   [other]      
+     0.00%  systemd-resolve  [other]      
+     0.00%  systemd-udevd    [other]      
+     0.00%  migration/7      [other]      
+     0.00%  migration/3      [other]      
+     0.00%  migration/8      [other]      
+     0.00%  migration/1      [other]      
+     0.00%  migration/4      [other]      
+     0.00%  migration/2      [other]      
+     0.00%  smbd-notifyd     [other]      
+     0.00%  at-spi2-registr  [other]      
+     0.00%  kworker/dying    [other]      
+     0.00%  kworker/6:1H-ev  [other]      
+     0.00%  ssh-agent        [other]      
+     0.00%  kworker/4:1H-ev  [other]      
+     0.00%  migration/5      [other]      
+     0.00%  ibus-x11         [other]      
+     0.00%  ksoftirqd/6      [other]      
+     0.00%  ksoftirqd/3      [other]      
+     0.00%  ksoftirqd/4      [other]      
+
+
+#
+# (Tip: Customize output of perf script with: perf script -F event,ip,sym)
+#

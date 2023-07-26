@@ -3424,10 +3424,6 @@ static vm_fault_t do_anonymous_page(struct vm_fault *vmf)
 
 	/* Allocate our own private page. */
 
-	if (/*vma->vm_mm->owner->pid == 5555*/ true) {
-		count_vm_event(MEM_DO_ANONYMUS_PAGE_FOR_PID_5555);
-	}
-
 	if (unlikely(anon_vma_prepare(vma))) {
 		pr_alert("anon_vma_prepare VM_FAULT_OOM");
 		goto oom;

@@ -1783,7 +1783,7 @@ int zap_huge_pmd(struct mmu_gather *tlb, struct vm_area_struct *vma,
 	if (!ptl)
 		return 0;
 
-	rm_release_reservation(vma, addr, false);
+	rm_release_reservation(vma, addr, true);
 	/*
 	 * For architectures like ppc64 we look at deposited pgtable
 	 * when calling pmdp_huge_get_and_clear. So do the
@@ -2815,9 +2815,9 @@ int promote_huge_pmd_address(struct vm_area_struct *vma, unsigned long haddr, st
 			// #ifdef DEBUG_RESERV_THP
 			// pr_alert("else");
 
-			if (page_to_pfn(pte_page(pteval)) != page_to_pfn(page)) {
-				pr_info("ERROR: page_to_pfn(pte_page(pteval)) %lx != page_to_pfn(page) %lx", page_to_pfn(pte_page(pteval)), page_to_pfn(page));
-			}
+			// if (page_to_pfn(pte_page(pteval)) != page_to_pfn(page)) {
+			// 	pr_info("ERROR: page_to_pfn(pte_page(pteval)) %lx != page_to_pfn(page) %lx", page_to_pfn(pte_page(pteval)), page_to_pfn(page));
+			// }
 			// #endif
 
 			// unlock_page(page);

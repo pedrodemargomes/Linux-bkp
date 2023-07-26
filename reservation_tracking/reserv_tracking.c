@@ -67,7 +67,7 @@ static ssize_t alloc_scan_sleep_store(struct kobject *kobj,
 
 	scan_sleep_millisecs = msecs;
 	sleep_expire = 0;
-	// wake_up_interruptible(&osa_hpage_scand_wait);
+	wake_up_interruptible(&osa_hpage_scand_wait);
 	return count;
 }
 static struct kobj_attribute alloc_sleep_millisecs_attr =
@@ -153,31 +153,31 @@ void osa_hpage_do_scan(void)
 	*/
 	
 	// Scanning partial populated reservations
-	spin_lock(&osa_hpage_list_lock);
-	list_for_each_entry_safe(rm_entry, aux, &osa_hpage_scan_list, osa_hpage_scan_link) {
-		list_size++;
-		timestamp = rm_entry->timestamp;
-		if (jiffies_to_msecs(jiffies) - timestamp > 5000) {
-			num_freed++;
-			// pr_alert("timestamp = %u", jiffies_to_msecs(jiffies) - timestamp);
-			// next_lock = &rm_entry->lock;
-			// if (spin_trylock(next_lock)) {
-			// 	// pr_alert("rm_release_reservation_fast rm_entry->head = %ld", page_to_pfn(get_page_from_rm((unsigned long)(rm_entry->next_node))) );
-			// 	rm_release_reservation_fast(rm_entry);
-			// 	spin_unlock(next_lock);
-			// 	num_freed++;
-			// }
-			// if (num_freed > 100)
-			// 	break;
+	// spin_lock(&osa_hpage_list_lock);
+	// list_for_each_entry_safe(rm_entry, aux, &osa_hpage_scan_list, osa_hpage_scan_link) {
+	// 	list_size++;
+	// 	timestamp = rm_entry->timestamp;
+	// 	if (jiffies_to_msecs(jiffies) - timestamp > 5000) {
+	// 		num_freed++;
+	// 		// pr_alert("timestamp = %u", jiffies_to_msecs(jiffies) - timestamp);
+	// 		// next_lock = &rm_entry->lock;
+	// 		// if (spin_trylock(next_lock)) {
+	// 		// 	// pr_alert("rm_release_reservation_fast rm_entry->head = %ld", page_to_pfn(get_page_from_rm((unsigned long)(rm_entry->next_node))) );
+	// 		// 	rm_release_reservation_fast(rm_entry);
+	// 		// 	spin_unlock(next_lock);
+	// 		// 	num_freed++;
+	// 		// }
+	// 		// if (num_freed > 100)
+	// 		// 	break;
 
-		}
-	}
-	spin_unlock(&osa_hpage_list_lock);
+	// 	}
+	// }
+	// spin_unlock(&osa_hpage_list_lock);
 
-	pr_info("num_freed = %d", num_freed);
-	pr_info("list_size = %d", list_size);
+	// pr_info("num_freed = %d", num_freed);
+	// pr_info("list_size = %d", list_size);
 	int split = deferred_split_scan(NULL, &sc);
-	pr_info("split = %d", split);
+	// pr_info("split = %d", split);
 
 	compact_nodes();
 
