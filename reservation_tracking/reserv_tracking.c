@@ -176,7 +176,7 @@ void osa_hpage_do_scan(void)
 
 	// pr_info("num_freed = %d", num_freed);
 	// pr_info("list_size = %d", list_size);
-	int split = deferred_split_scan(NULL, &sc);
+	// int split = deferred_split_scan(NULL, &sc);
 	// pr_info("split = %d", split);
 
 	compact_nodes();

@@ -1468,12 +1468,12 @@ good_area:
 		unsigned long hstart = (vma->vm_start + ~HPAGE_PMD_MASK) & HPAGE_PMD_MASK;
 		unsigned long hend = vma->vm_end & HPAGE_PMD_MASK;
 		rm_entry = get_rm_entry_from_reservation(vma, address, &mask);
-		if (!( haddr < hstart || haddr + HPAGE_PMD_SIZE > hend) && rm_entry && mask != NULL && bitmap_weight(mask, 512) > 0) {
+		if (!( haddr < hstart || haddr + HPAGE_PMD_SIZE > hend) && rm_entry && mask != NULL && bitmap_weight(mask, 512) > 64) {
 			down_write(&mm->mmap_sem);
 			rm_entry = get_rm_entry_from_reservation(vma, address, &mask);
 
-			if ( !(!(haddr < hstart || haddr + HPAGE_PMD_SIZE > hend) && rm_entry && rm_entry->mask != NULL && bitmap_weight(rm_entry->mask, 512) > 0) ) {
-				// pr_info("+++");
+			if ( !(!(haddr < hstart || haddr + HPAGE_PMD_SIZE > hend) && rm_entry && rm_entry->mask != NULL && bitmap_weight(rm_entry->mask, 512) > 64) ) {
+				pr_info("+++");
 				goto out;
 			}
 
@@ -1481,13 +1481,13 @@ good_area:
 			// 	pr_info("+++ is_invalid_rm +++");
 
 			if (!rm_entry->next_node) {
-				// pr_info("!rm_entry->next_node");
+				pr_info("!rm_entry->next_node");
 				goto out;
 			}
 
 			int result = hugepage_vma_revalidate(mm, haddr, &vma);
 			if (result) {
-				// pr_info("goto out hugepage_vma_revalidate");
+				pr_info("goto out hugepage_vma_revalidate");
 				goto out;
 			}
 
@@ -1503,7 +1503,7 @@ good_area:
 			struct page *head = get_page_from_rm((unsigned long) rm_entry->next_node);
 			// pr_info("page_to_pfn(head) = %lx rm_entry->next_node = %p haddr = %lx mask = %d", page_to_pfn(head),  rm_entry->next_node, haddr, bitmap_weight(mask, 512));
 			if (PageTransCompound(head)) {
-				// pr_info("__do_page_fault PageTransCompound(head) page_to_pfn(head) = %lx head = %llx haddr = %lx mask weight = %d mask weight = %d", page_to_pfn(head), head, haddr, bitmap_weight(mask, 512), bitmap_weight(rm_entry->mask, 512));
+				pr_info("__do_page_fault PageTransCompound(head) page_to_pfn(head) = %lx head = %llx haddr = %lx mask weight = %d mask weight = %d", page_to_pfn(head), head, haddr, bitmap_weight(mask, 512), bitmap_weight(rm_entry->mask, 512));
 				goto out;
 			}
 			

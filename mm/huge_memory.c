@@ -2815,9 +2815,9 @@ int promote_huge_pmd_address(struct vm_area_struct *vma, unsigned long haddr, st
 			// #ifdef DEBUG_RESERV_THP
 			// pr_alert("else");
 
-			// if (page_to_pfn(pte_page(pteval)) != page_to_pfn(page)) {
-			// 	pr_info("ERROR: page_to_pfn(pte_page(pteval)) %lx != page_to_pfn(page) %lx", page_to_pfn(pte_page(pteval)), page_to_pfn(page));
-			// }
+			if (page_to_pfn(pte_page(pteval)) != page_to_pfn(page)) {
+				pr_info("ERROR: page_to_pfn(pte_page(pteval)) %lx != page_to_pfn(page) %lx", page_to_pfn(pte_page(pteval)), page_to_pfn(page));
+			}
 			// #endif
 
 			// unlock_page(page);
@@ -3212,7 +3212,7 @@ next:
 		// pr_alert("SHRINK_STOP");
 		return SHRINK_STOP;
 	}
-	// pr_alert("split = %d", split);
+	pr_info("split = %d", split);
 	return split;
 }
 
